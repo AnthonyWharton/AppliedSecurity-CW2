@@ -1,0 +1,13 @@
+Q.1 The vendor of the attack target is concerned that news of this attack
+    could scare off potential customers; they will make any alteration
+    necessary (in software or hardware) to prevent the attack.  Explain the
+    options they have, and which one you would recommend.
+Q.2 The vendor of the attack target is concerned that a similar attack may
+    also apply to their implementation of ElGamal encryption.  Explain the
+    potential for such an attack, and how it differs wrt.  the case of RSA.
+Q.3 Your implementation of this attack will use some form of statistical
+    test.  Explain what test you have used, how it works, and also how it
+    compares with at least one alternative.
+Q.8 Imagine you read a research paper that suggests a larger key (e.g.,
+    2048-bit rather than 1024-bit) could help to prevent this attack.
+    Explain whether and why you think this is right (or wrong).

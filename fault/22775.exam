@@ -1,0 +1,14 @@
+Q.1 Consider that instead of influencing data (e.g., the AES state), a
+    fault might influence control-flow (e.g., a conditional statement)
+    somehow during execution.  Stating any assumptions you make, give an
+    alternative attack strategy based on this ability.
+Q.2 Outline the methods available for hardening this AES implementation
+    against fault attacks; for each method, explain any assumptions you
+    make and compare it with the others wrt.  metrics such as robustness,
+    latency, and memory footprint.
+Q.3 The question outlines one method to induce faults (i.e., via a clock
+    glitch).  For the same attack target, construct a set of alternative
+    methods and explain whether they seem applicable given the context.
+Q.6 One way to reduce the effectiveness of DPA attacks on AES is to use a
+    masking countermeasure.  Explain if and why the *same* countermeasure
+    could also have an impact on the effectiveness of fault attacks.
