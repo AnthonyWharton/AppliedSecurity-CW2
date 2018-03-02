@@ -1,30 +1,34 @@
-# Copyright (C) 2017 Daniel Page <csdsp@bristol.ac.uk>
-#
-# Use of this source code is restricted per the CC BY-NC-ND license, a copy of
-# which can be found via http://creativecommons.org (and should be included as
-# LICENSE.txt within the associated archive or repository).
+import sys, subprocess, math
 
-import sys, subprocess, time
+# Reference 1:
+# Manger, J., 2001, August. A chosen ciphertext attack on RSA optimal asymmetric
+# encryption padding (OAEP) as standardized in PKCS# 1 v2. 0. In Annual
+# International Cryptology Conference (pp. 230-238). Springer, Berlin,
+# Heidelberg.
 
+# Reads in the configuration for the attack from a given file.
 def read_config(path):
 	# Read in config file
 	config_file = open(path)
-	N = config_file.readline()
-	e = config_file.readline()
-	l = config_file.readline()
-	c = config_file.readline()
+	N = config_file.readline()[:-1]
+	e = config_file.readline()[:-1]
+	l = config_file.readline()[:-1]
+	c = config_file.readline()[:-1]
 	config_file.close()
 
+	print "================================================================"
 	print "Read in the following values from Config File:"
-	print "          RSA Modulus: " + N[:-1]
-	print "  RSA Public Exponent: " + e[:-1]
-	print "     RSAES-OAEP Label: " + l[:-1]
-	print "RSAES-OAEP Ciphertext: " + c[:-1]
+	print "          RSA Modulus: " + N
+	print "  RSA Public Exponent: " + e
+	print "     RSAES-OAEP Label: " + l
+	print "RSAES-OAEP Ciphertext: " + c
+	print "================================================================"
 
 	return N, e, l, c
 
+# Converts the hexadecimal string form of the config file into regular
+# integer representation.
 def convert_config(N_str, e_str, l_str, c_str):
-	# Convert numbers
 	N = int(N_str, 16)  # RSA Modulus
 	e = int(e_str, 16)  # RSA Public Exponent
 	l = int(l_str, 16)  # RSAES-OAEP label
@@ -32,51 +36,56 @@ def convert_config(N_str, e_str, l_str, c_str):
 
 	return N, e, l, c
 
-def interact(G):
-	# Send G to attack target.
-	target_in.write("%s\n" % (G));
-	target_in.flush()
+def create_ciphertext(c):
+	return hex(c).upper()[2:]
 
-	# Receive (t, r) from attack target.
-	t = int(target_out.readline().strip())
-	r = int(target_out.readline().strip())
+# Feeds a given label and ciphertext to the target, and returns the status code
+def interact(target, label, ciphertext):
+	target.stdin.write(label      + "\n")
+	target.stdin.write(ciphertext + "\n")
+	target.stdin.flush()
+	return int(target.stdout.readline().strip())
 
-	return t, r
+# Performs Step 1 from the attack in Reference 1
+def step1(target, N, e, l, c):
+	f1 = 1
+	status = 0
 
+	while status != 1:
+		f1 *= 2
+		# challenge is in [0, 2B]
+		challenge = create_ciphertext((pow(f1, e, N) * c) % N)
+		status = interact(target, l, challenge)
+		print "Status: " + str(status)
 
-def attack():
-	# Select a hard-coded guess ...
+	# f1 is in [B, 2B]
+	return f1
 
-	G = "guess"
+# Performs the attack
+def attack(target, config_path):
+	Ns, es, ls, cs = read_config(config_path)
+	Ni, ei, li, ci = convert_config(Ns, es, ls, cs)
 
-	# ... then interact with the attack target.
+	k = int(math.ceil(math.log(Ni, 256)))
+	B = 2 ** (8*(k-1))
 
-	(t, r) = interact(G)
+	f1 = step1(target, Ni, ei, ls, ci)
 
-	# Print all of the inputs and outputs.
+	print f1
 
-	print "G = %s" % (G)
-	print "t = %d" % (t)
-	print "r = %d" % (r)
-
-if __name__ == "__main__":
-	# Get the file locations for the e-commerce server and public configuration
+def main():
+	# Get the file locations for the "e-commerce server" (target) and public
+	# configuration parameters
 	server_path = sys.argv[1]
 	config_path = sys.argv[2]
-
-	N, e, l, c = read_config(config_path)
-	N, e, _, _ = convert_config(N, e, l, c)
-
-	time.sleep(0.001)
 
 	# Produce a sub-process representing the attack target.
 	target = subprocess.Popen(args=[server_path],
 	                          stdout=subprocess.PIPE,
 	                          stdin=subprocess.PIPE)
 
-	# Construct handles to attack target standard input and output.
-	target_out = target.stdout
-	target_in = target.stdin
-
 	# Execute a function representing the attacker.
-	attack()
+	attack(target, config_path)
+
+if __name__ == "__main__":
+	main()
