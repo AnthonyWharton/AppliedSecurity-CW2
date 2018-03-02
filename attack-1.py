@@ -61,6 +61,21 @@ def step1(target, N, e, l, c):
 	# f1 is in [B, 2B]
 	return f1
 
+# Performs Step 2 from the attack in Reference 1
+def step2(target, N, e, l, c, f1, B):
+	f2 = int(math.floor(float(N + B)/B) * (f1/2))
+	challenge = create_ciphertext((pow(f2, e, N) * c) % N)
+	status = interact(target, l, challenge)
+	print "Status: " + str(status)
+
+	while status == 1:
+		f2 = f2 + (f1/2)
+		challenge = create_ciphertext((pow(f2, e, N) * c) % N)
+		status = interact(target, l, challenge)
+		print "Status: " + str(status)
+
+	return f2
+
 # Performs the attack
 def attack(target, config_path):
 	Ns, es, ls, cs = read_config(config_path)
@@ -70,8 +85,10 @@ def attack(target, config_path):
 	B = 2 ** (8*(k-1))
 
 	f1 = step1(target, Ni, ei, ls, ci)
+	f2 = step2(target, Ni, ei, ls, ci, f1, B)
 
 	print f1
+	print f2
 
 def main():
 	# Get the file locations for the "e-commerce server" (target) and public
