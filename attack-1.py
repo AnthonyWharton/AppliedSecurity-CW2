@@ -6,6 +6,8 @@ import sys, subprocess, math
 # International Cryptology Conference (pp. 230-238). Springer, Berlin,
 # Heidelberg.
 
+################################################################################
+# Helper function to truncate long strings (s) into a length (ln)
 def centre_trunc_string(ln, s):
 	if ln % 2 == 0:
 		return s[:(ln/2)-3] + " .... " + s[-(ln/2)+2:] if len(s) > ln else s
@@ -13,23 +15,33 @@ def centre_trunc_string(ln, s):
 		return s[:(ln/2)-2] + " ... "  + s[-(ln/2)+2:] if len(s) > ln else s
 
 ################################################################################
+# Helper functions for integer division with floor and ceiling rounding
+def int_div_f(x, y):
+	return divmod(x, y)[0]
+
+def int_div_c(x, y):
+	q, m = divmod(x, y)
+	if m == 0:
+		return q
+	else:
+		return q + 1
+
+################################################################################
 # Reads in the configuration for the attack from a given file.
 def read_config(path):
-	# Read in config file
 	config_file = open(path)
-	N = config_file.readline()[:-1]
+	N = config_file.readline()[:-1] # Remove newline characters
 	e = config_file.readline()[:-1]
 	l = config_file.readline()[:-1]
 	c = config_file.readline()[:-1]
-	config_file.close()
-
+	config_file.close() # I remembered to close my file this time!
 	print "=" * 80
 	print "Read in the following values from Config File:"
 	print "          RSA Modulus: " + centre_trunc_string(57, N)
 	print "  RSA Public Exponent: " + centre_trunc_string(57, e)
 	print "     RSAES-OAEP Label: " + centre_trunc_string(57, l)
 	print "RSAES-OAEP Ciphertext: " + centre_trunc_string(57, c)
-	print "=" * 80
+	print "=" * 80 + "\n"
 	return N, e, l, c
 
 ################################################################################
@@ -46,31 +58,20 @@ def convert_config(N_str, e_str, l_str, c_str):
 	print "  RSA Public Exponent: " + centre_trunc_string(57, str(e))
 	print "     RSAES-OAEP Label: " + centre_trunc_string(57, str(l))
 	print "RSAES-OAEP Ciphertext: " + centre_trunc_string(57, str(c))
-	print "=" * 80
+	print "=" * 80 + "\n"
 	return N, e, l, c
 
 ################################################################################
-# Creates a challenge ciphertext
+# Creates a challenge ciphertext using global format string
 _challenge_format = "{}"
-def create_challenge(m, N, e, c=1):
+def create_challenge(m, N, e, c):
 	t = (pow(m, e, N) * c) % N
+	global _challenge_format
 	return _challenge_format.format(t)
 
 ################################################################################
-# Helper functions for integer division with floor and ceiling rounding
-def int_div_f(x, y):
-	return divmod(x, y)[0]
-
-def int_div_c(x, y):
-	q, m = divmod(x, y)
-	if m == 0:
-		return q
-	else:
-		return q + 1
-
-################################################################################
 # Feeds a given label and ciphertext to the target, and returns the status code
-_challenge_count = 0
+_challenge_count = 0 # Global challenge/interaction count
 def challenge(target, label, ciphertext):
 	target.stdin.write(label      + "\n")
 	target.stdin.write(ciphertext + "\n")
@@ -133,6 +134,7 @@ def step3(target, N, e, l, c, f2, B):
 ################################################################################
 # Runs a step of the attack with nice printing
 def run_step(n, f, args):
+	global _challenge_count
 	sys.stdout.write("Starting Step " + str(n) + " ... ")
 	r = f(*args)
 	sys.stdout.write("DONE (" + str(_challenge_count).rjust(4) +
@@ -157,6 +159,7 @@ def attack(target, config_path):
 	f1        = run_step(1, step1, (target, Ni, ei, ls, ci))
 	f2        = run_step(2, step2, (target, Ni, ei, ls, ci, f1, B))
 	f3, m_max = run_step(3, step3, (target, Ni, ei, ls, ci, f2, B))
+	print ""
 
 	return "memes"
 
@@ -179,6 +182,7 @@ def main():
 	m = attack(target, config_path)
 
 	version_warning()
+	global _challenge_count
 	print "Extracted Material: " + str(m)
 	print "Interactions with Target: " + str(_challenge_count)
 
