@@ -16,7 +16,7 @@
 So that we can calibrate and improve the assignment in the future, give us
 a rough idea how long (in hours) you spent on it *in total*:
 
-effort : stage 1 -> [...] hours
+effort : stage 1 -> 16 hours
 effort : stage 2 -> [...] hours
 effort : stage 3 -> [...] hours
 effort : stage 4 -> [...] hours
@@ -31,7 +31,13 @@ by the assignment description of course).  Let us know what third-party
 source code or resources you used (if any) so it's clear what's your work 
 and what isn't:
 
-[...]
+Stage 1:
+ - https://www.ietf.org/rfc/rfc2437.txt
+ - https://www.ietf.org/rfc/rfc3447.txt
+ - Manger, J., 2001, August. A chosen ciphertext attack on RSA optimal
+   asymmetric encryption padding (OAEP) as standardized in PKCS# 1 v2. 0. In
+   Annual International Cryptology Conference (pp. 230-238). Springer, Berlin,
+   Heidelberg.
 
 -------------------------------------------------------------------------------
 
@@ -44,12 +50,12 @@ outside this list can warrant an increase/decrease in marks, with examples
 including hard to quantify features such as the efficiency, robustness, 
 generality, realism, or style of a solution.
 
-[?] Stage 1 : an attack based on error messages
+[X] Stage 1 : an attack based on error messages
               - correct challenge material                           ( 40%)
               - solution quality wrt. efficiency, robustness etc.    ( 30%)
               - analysis questions                                   ( 30%)
 
-              challenge material (i.e., plaintext  m^{*}) : [...]
+      TODO:   challenge material (i.e., plaintext  m^{*}) : [...]
 
 [?] Stage 2 : an attack based on execution time
               - correct challenge material                           ( 40%)
@@ -83,7 +89,8 @@ Any other documentation, notes or comments that you think are important or
 might be easy to overlook (e.g., a subtle issue or technique in associated
 source code) should go here:
 
-[...]
+Stage 1:
+    Everything is documented in-file
 
 -------------------------------------------------------------------------------
 
