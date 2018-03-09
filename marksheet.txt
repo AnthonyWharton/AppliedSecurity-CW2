@@ -55,7 +55,8 @@ generality, realism, or style of a solution.
               - solution quality wrt. efficiency, robustness etc.    ( 30%)
               - analysis questions                                   ( 30%)
 
-      TODO:   challenge material (i.e., plaintext  m^{*}) : [...]
+              challenge material (i.e., plaintext  m^{*}) :
+              6A2B052ADCCDD3A2DE7D1AB268F2EC5018B257A04C8ED56C896DA9
 
 [?] Stage 2 : an attack based on execution time
               - correct challenge material                           ( 40%)
