@@ -34,9 +34,10 @@ def mont_convert(T, N, R):
 
 # Produces the Montgomery Reduction of T modulo N.
 # Returns tuple of the reduction and whether or not we reduced mod N
-def mont_redux(T, N, R):
-	_, _, ni = xgcd(R, N)
-	m = -(T*ni) % R
+def mont_redux(T, N, R, Ni = None):
+	if Ni == None:
+		_, _, Ni = xgcd(R, N)
+	m = -(T*Ni) % R
 	t = ((T + (m*N)) / R)
 	return t % N, t > N
 
@@ -53,5 +54,5 @@ def mont_sub(a, b, N):
 # Multiplies two numbers, a and b, in Montgomery form, under modulo N.
 # Returns an answer in Montgomery Form in a tuple, with whether or not we
 # reduced the answer modulo N.
-def mont_mul(a, b, N, R):
-	return mont_redux(a * b, N, R)
+def mont_mul(a, b, N, R, Ni = None):
+	return mont_redux(a * b, N, R, Ni)
