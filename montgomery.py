@@ -1,0 +1,54 @@
+global _base_size
+_base_size = 64
+
+# Computes the GCD of a and b.
+def gcd(a, b):
+	while b:
+		a, b = b, a%b
+	return a
+
+# Computes XGCD(a, b).
+# Returns (m, x, y) s.t. m = a*x + b*y
+def xgcd(a, b):
+	prev_x, x = 1, 0
+	prev_y, y = 0, 1
+	while b:
+		q, a, b = a/b, b, a % b
+		x, prev_x = prev_x - q*x, x
+		y, prev_y = prev_y - q*y, y
+	return a, prev_x, prev_y
+
+# Finds an R such that R = 2^k, R > N, for the smallest k.
+def mont_findR(N):
+	g = 0
+	R = 2 ** _base_size
+	while g != 0:
+		R *= 2
+		if R <= N:
+			g = gcd(R, N)
+	return R
+
+# Converts T into Montgomery Form.
+def mont_convert(T, N, R):
+	return (T*R) % N
+
+# Produces the Montgomery Reduction of T modulo N.
+def mont_redux(T, N, R):
+	_, _, ni = xgcd(R, N)
+	m = -(T*ni) % R
+	return ((T + (m*N)) / R) % N
+
+# Adds two numbers, a and b, in Montgomery form, under modulo N.
+# Returns an answer in Montgomery Form.
+def mont_add(a, b, N):
+	return (a + b) % N
+
+# Subtracts two numbers, b from a, in Montgomery form, under modulo N.
+# Returns an answer in Montgomery Form.
+def mont_sub(a, b, N):
+	return (a - b) % N
+
+# Multiplies two numbers, a and b, in Montgomery form, under modulo N.
+# Returns an answer in Montgomery Form.
+def mont_mul(a, b, N, R):
+	return mont_redux(a * b, N, R)
