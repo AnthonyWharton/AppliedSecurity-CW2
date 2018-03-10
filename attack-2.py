@@ -76,15 +76,15 @@ def interact(target, ciphertext):
 ################################################################################
 # Generates random messages
 # Arguments:
-#   bit_length  - integer: Number of bits a message should be
+#   N           - integer: Messages will be between 0 and N-1 (inclusive)
 #   sample_size - integer: Number of messages to generate
 # Return:
 #   [integer]: A list of randomly generated sample messages in integer form
-def generate_messages(bit_length, sample_size):
+def generate_messages(N, sample_size):
 	rng = random.SystemRandom()
 	samples = []
 	for i in range(sample_size):
-		samples.append(rng.getrandbits(bit_length))
+		samples.append(rng.getrandbits(N.bit_length()) % N)
 	return samples
 
 
@@ -115,42 +115,48 @@ def get_timings(target, messages):
 #   R    - integer:   Montgomery Form Parameter
 #   Ni   - integer:   Modular Inverse of N
 # Returns:
-#   6-tuple of [integer]: List of next m_temp's if key bit is 0, List of next
-#                         m_temp's if key bit is 1, Followed by 4 lists of
-#                         messages in M1/M2/M3/M4 respectively as in reference 1
-def internal_oracle(ms_p, ms, mts, N, R, Ni):
-	if not (len(ms_p) == len(ms) and len(ms) == len(mts)):
-		raise ValueError("ms_p and mts and ms should be the same length")
+#   3-tuple of [[integer]]: mts_, M, F (where M[n] and F[n] correspond to M[n+1]
+#                           as in Reference 1. For reference:
+#       mts_[0] Set of results of (m_temp)^2
+#       mts_[1] Set of results of (m_temp * m)^2
+#       M[0]    Set of messages s.t. (m_temp * m)^2 is done with a reduction
+#       M[1]    Set of messages s.t. (m_temp * m)^2 is done without a reduction
+#       M[2]    Set of messages s.t. (m_temp)^2 is done with a reduction
+#       M[3]    Set of messages s.t. (m_temp)^2 is done without a reduction
+#       F[n]    Sets of timing data corresponding to M[n]
+def internal_oracle(m, t, ms, mts, N, R, Ni):
+	if not (len(m) == len(t) and len(t) == len(ms) and len(ms) == len(mts)):
+		raise ValueError("m, t, ms and mts should be the same length")
 
-	mts0 = [] # Set of results of (m_temp)^2
-	mts1 = [] # Set of results of (m_temp * m)^2
-	# Below as per Reference 1:
-	M1 = []   # Set of messages s.t. (m_temp * m)^2 is done with a reduction
-	M2 = []   # Set of messages s.t. (m_temp * m)^2 is done without a reduction
-	M3 = []   # Set of messages s.t. (m_temp)^2 is done with a reduction
-	M4 = []   # Set of messages s.t. (m_temp)^2 is done without a reduction
+	mts_ = [[], []]
+	M = [[], [], [], []]
+	F = [[], [], [], []]
 
 	for i in range(len(mts)):
 		# Oracle 1 from Reference 1
 		o1, _   = mont_mul(mts[i], ms[i], N, R, Ni)
 		o1, o1b = mont_mul(o1, o1, N, R, Ni)
 		if o1b:
-			M1.append(ms_p[i])
+			M[0].append(m[i])
+			F[0].append(t[i])
 		else:
-			M2.append(ms_p[i])
+			M[1].append(m[i])
+			F[2].append(t[i])
 
 		# Oracle 2 from Reference 1
 		o2, o2b = mont_mul(mts[i], mts[i], N, R, Ni)
 		if o2b:
-			M3.append(ms_p[i])
+			M[2].append(m[i])
+			F[2].append(t[i])
 		else:
-			M4.append(ms_p[i])
+			M[3].append(m[i])
+			F[3].append(t[i])
 
 		# Keep track of calculation for next m_temp (optimisation)
-		mts0.append(o2)
-		mts1.append(o1)
+		mts_[0].append(o2)
+		mts_[1].append(o1)
 
-	return mts0, mts1, M1, M2, M3, M4
+	return mts_, M, F
 
 ################################################################################
 # Performs the attack
@@ -178,15 +184,16 @@ def attack(target, config_path):
 	_, _, Ni = xgcd(R, N)
 
 	# Generate Sample Messages and get timings
-	messages = generate_messages(Ni.bit_length(), 2000)
-	timings  = get_timings(target, messages)
+	# messages   = generate_messages(N, 2000)
+	ms   = [7437547582898201166504790977009610016749607629859363723369068181167009518876199364654610230480145538179909148502618573185612444121691839267565803294923702420005740938330614081786981007239523341371497003489375266303038180338735276899083164028033783243467202599597567762300353895115906651794955198976961277782,
+	        28322960429222631649519165870154768807551969381586638880015921551868899479825915114670445913524003181840626189062434078298169148285240351148854593202066887026127177236564723164830250463764344731177585826562788177010357956222963602960797909232584786281688554448416696221018039806357035293662240436721652725740]
+	ms_m = [mont_convert(m, N, R) for m in ms]
+	ts   = get_timings(target, ms)
 
-	# while not found_key and len(key) <= max_key_size:
-	# 	# messages   = generate_messages(Ni.bit_length(), 2)
-	# 	messages = [7437547582898201166504790977009610016749607629859363723369068181167009518876199364654610230480145538179909148502618573185612444121691839267565803294923702420005740938330614081786981007239523341371497003489375266303038180338735276899083164028033783243467202599597567762300353895115906651794955198976961277782, 28322960429222631649519165870154768807551969381586638880015921551868899479825915114670445913524003181840626189062434078298169148285240351148854593202066887026127177236564723164830250463764344731177585826562788177010357956222963602960797909232584786281688554448416696221018039806357035293662240436721652725740]
-	# 	messages_m = [mont_convert(m, N, R) for m in messages]
-	# 	m_temp = [mont_mul(m, m, N, R, Ni)[0] for m in messages_m]
-	# 	mts0, mts1, M1, M2, M3, M4 = internal_oracle(messages, messages_m, m_temp, N, R, Ni)
+	while not found_key and len(key) <= max_key_size:
+		m_temp            = [mont_mul(m, m, N, R, Ni)[0] for m in ms_m]
+		m_temp_next, M, F = internal_oracle(ms, ts, ms_m, m_temp, N, R, Ni)
+
 
 	# print "M1"
 	# print M1
