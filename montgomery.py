@@ -21,10 +21,11 @@ def xgcd(a, b):
 # Finds an R such that R = 2^k, R > N, for the smallest k.
 def mont_findR(N):
 	g = 0
-	R = 2 ** _base_size
-	while g != 0:
-		R *= 2
-		if R <= N:
+	b = 2 ** _base_size
+	R = b
+	while g != 1:
+		R *= b
+		if R > N:
 			g = gcd(R, N)
 	return R
 
