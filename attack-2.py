@@ -71,6 +71,7 @@ def interact(target, ciphertext):
 	_interaction_count = _interaction_count + 1
 	dt = int(target.stdout.readline().strip(), 10)
 	m  = int(target.stdout.readline().strip(), 16)
+	return dt, m
 
 ################################################################################
 # Generates random messages
@@ -85,6 +86,23 @@ def generate_messages(bit_length, sample_size):
 	for i in range(sample_size):
 		samples.append(rng.getrandbits(bit_length))
 	return samples
+
+
+################################################################################
+# Gets the timings from the oracle for all the given messages
+# Arguments:
+#   target   - subprocess: Target to interact with
+#   messages - [integer]:  List of all messages to get timnigs of
+# Return:
+#   [integer] A list of timings in an order corresponding to the list of given
+#             messages. Timings are number of clock cycles and may contain
+#             experimental noise.
+def get_timings(target, messages):
+	dts = []
+	for m in messages:
+		dt, ms = interact(target, "{0:X}".format(m))
+		dts.append(dt)
+	return dts
 
 ################################################################################
 # Determines whether or not the next iteration's calculations require a
@@ -134,7 +152,6 @@ def internal_oracle(ms_p, ms, mts, N, R, Ni):
 
 	return mts0, mts1, M1, M2, M3, M4
 
-
 ################################################################################
 # Performs the attack
 # Arguments:
@@ -160,14 +177,16 @@ def attack(target, config_path):
 	R        = mont_findR(N)
 	_, _, Ni = xgcd(R, N)
 
-	while not found_key and len(key) <= max_key_size:
-		# Generate Sample Messages
-		# messages   = generate_messages(Ni.bit_length(), 2)
-		messages = [7437547582898201166504790977009610016749607629859363723369068181167009518876199364654610230480145538179909148502618573185612444121691839267565803294923702420005740938330614081786981007239523341371497003489375266303038180338735276899083164028033783243467202599597567762300353895115906651794955198976961277782, 28322960429222631649519165870154768807551969381586638880015921551868899479825915114670445913524003181840626189062434078298169148285240351148854593202066887026127177236564723164830250463764344731177585826562788177010357956222963602960797909232584786281688554448416696221018039806357035293662240436721652725740]
-		messages_m = [mont_convert(m, N, R) for m in messages]
-		m_temp = [mont_mul(m, m, N, R, Ni)[0] for m in messages_m]
+	# Generate Sample Messages and get timings
+	messages = generate_messages(Ni.bit_length(), 2000)
+	timings  = get_timings(target, messages)
 
-		mts0, mts1, M1, M2, M3, M4 = internal_oracle(messages, m_temp, messages_m, N, R, Ni)
+	# while not found_key and len(key) <= max_key_size:
+	# 	# messages   = generate_messages(Ni.bit_length(), 2)
+	# 	messages = [7437547582898201166504790977009610016749607629859363723369068181167009518876199364654610230480145538179909148502618573185612444121691839267565803294923702420005740938330614081786981007239523341371497003489375266303038180338735276899083164028033783243467202599597567762300353895115906651794955198976961277782, 28322960429222631649519165870154768807551969381586638880015921551868899479825915114670445913524003181840626189062434078298169148285240351148854593202066887026127177236564723164830250463764344731177585826562788177010357956222963602960797909232584786281688554448416696221018039806357035293662240436721652725740]
+	# 	messages_m = [mont_convert(m, N, R) for m in messages]
+	# 	m_temp = [mont_mul(m, m, N, R, Ni)[0] for m in messages_m]
+	# 	mts0, mts1, M1, M2, M3, M4 = internal_oracle(messages, messages_m, m_temp, N, R, Ni)
 
 	# print "M1"
 	# print M1
