@@ -121,13 +121,13 @@ def create_challenge(m, N, e, c):
 #   ciphertext - string:     Challenge RSAES-OAP Ciphertext
 # Return:
 #   integer: The response status code from the target
-_challenge_count = 0 # Global challenge/interaction count
-def challenge(target, label, ciphertext):
+_interaction_count = 0 # Global challenge/interaction count
+def interact(target, label, ciphertext):
 	target.stdin.write(label      + "\n")
 	target.stdin.write(ciphertext + "\n")
 	target.stdin.flush()
-	global _challenge_count
-	_challenge_count = _challenge_count + 1
+	global _interaction_count
+	_challenge_count = _interaction_count + 1
 	return int(target.stdout.readline().strip())
 
 ################################################################################
@@ -144,7 +144,7 @@ def step1(target, N, e, l, c):
 	while st != 1:
 		f1 *= 2
 		ch = create_challenge(f1, N, e, c)
-		st = challenge(target, l, ch)
+		st = interact(target, l, ch)
 
 	return f1
 
@@ -159,12 +159,12 @@ def step2(target, N, e, l, c, f1, B):
 	ft = int_div_f(f1, 2)
 	f2 = int_div_f(N + B, B) * ft
 	ch = create_challenge(f2, N, e, c)
-	st = challenge(target, l, ch)
+	st = interact(target, l, ch)
 
 	while st == 1:
 		f2 = f2 + ft
 		ch = create_challenge(f2, N, e, c)
-		st = challenge(target, l, ch)
+		st = interact(target, l, ch)
 
 	return f2
 
@@ -187,7 +187,7 @@ def step3(target, N, e, l, c, f2, B):
 		b     = i * N + B
 
 		ch = create_challenge(int(f3), N, e, c)
-		st = challenge(target, l, ch)
+		st = interact(target, l, ch)
 
 		if st == 1:# or status == 6:
 			m_min = int_div_c(b, f3)
@@ -205,10 +205,10 @@ def step3(target, N, e, l, c, f2, B):
 # Return:
 #   Result of the function f
 def run_step(n, f, args):
-	global _challenge_count
+	global _interaction_count
 	sys.stdout.write("Starting Step " + str(n) + " ... ")
 	r = f(*args)
-	sys.stdout.write("DONE (" + str(_challenge_count).rjust(4) +
+	sys.stdout.write("DONE (" + str(_interaction_count).rjust(4) +
 	                 " challenges made so far)\n")
 	return r
 
@@ -319,9 +319,9 @@ def main():
 	m = attack(target, config_path)
 
 	version_warning()
-	global _challenge_count
+	global _interaction_count
 	print "Extracted Material: " + str(m)
-	print "Interactions with Target: " + str(_challenge_count)
+	print "Interactions with Target: " + str(_interaction_count)
 
 ################################################################################
 # Checks to see if the version is the same as the one developed in, which was
