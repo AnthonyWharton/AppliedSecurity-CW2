@@ -84,7 +84,10 @@ def generate_messages(N, sample_size):
 	rng = random.SystemRandom()
 	samples = []
 	for i in range(sample_size):
-		samples.append(rng.getrandbits(N.bit_length()) % N)
+		m = rng.getrandbits(N.bit_length())
+		while m >= N:
+			m = rng.getrandbits(N.bit_length())
+		samples.append(m)
 	return samples
 
 
