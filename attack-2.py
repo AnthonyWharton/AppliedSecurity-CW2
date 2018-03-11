@@ -111,7 +111,8 @@ def get_timings(target, messages):
 # Determines whether or not the next iteration's calculations require a
 # reduction or not.
 # Arguments:
-#   ms_p - [integer]: List of messages in plain integer form
+#   m    - [integer]: List of messages in plain integer form
+#   t    - [integer]: List of messages timings
 #   ms   - [integer]: List of messages in montgomery form
 #   mts  - [integer]: List of m_temp in montgomery form
 #   N    - integer:   Public RSA Modulus
@@ -144,7 +145,7 @@ def internal_oracle(m, t, ms, mts, N, R, Ni):
 			F[0].append(t[i])
 		else:
 			M[1].append(m[i])
-			F[2].append(t[i])
+			F[1].append(t[i])
 
 		# Oracle 2 from Reference 1
 		o2, o2b = mont_mul(mts[i], mts[i], N, R, Ni)
