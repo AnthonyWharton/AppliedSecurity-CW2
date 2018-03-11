@@ -1,4 +1,4 @@
-import sys, subprocess, random, math, hashlib
+import sys, subprocess, random
 from montgomery import *
 
 ################################################################################
@@ -74,44 +74,47 @@ def interact(target, ciphertext):
 	return dt, m
 
 ################################################################################
-# Generates random messages
+# Gets the decrypted messages and timings from the oracle for all the given
+# ciphertexts.
 # Arguments:
-#   N           - integer: Messages will be between 0 and N-1 (inclusive)
-#   sample_size - integer: Number of messages to generate
+#   target      - subprocess: Target to interact with
+#   ciphertexts - [integer]:  List of all messages to get timings of
 # Return:
-#   [integer]: A list of randomly generated sample messages in integer form
-def generate_messages(N, sample_size):
+#   2-tuple of [integer] A pair of list of message and timings respectively,
+#                        in an order corresponding to the list of given
+#                        messages. Timings are number of clock cycles and may
+#                        contain experimental noise.
+def multi_interact(target, ciphertexts):
+	dts = []
+	pts = []
+	global _challenge_format
+	for m in ciphertexts:
+		dt, pt = interact(target, _challenge_format.format(m))
+		dts.append(dt)
+		pts.append(pt)
+	return dts, pts
+
+################################################################################
+# Generates random ciphertexts
+# Arguments:
+#   N           - integer: Ciphertexts will be between 0 and N-1 (inclusive)
+#   sample_size - integer: Number of ciphertexts to generate
+# Return:
+#   [integer]: A list of randomly generated sample ciphertexts in integer form
+def generate_ciphertexts(N, sample_size):
 	rng = random.SystemRandom()
 	samples = []
 	for i in range(sample_size):
-		m = rng.getrandbits(N.bit_length())
-		while m >= N:
-			m = rng.getrandbits(N.bit_length())
-		samples.append(m)
+		c = rng.getrandbits(N.bit_length())
+		while c >= N:
+			c = rng.getrandbits(N.bit_length())
+		samples.append(c)
 	return samples
-
-
-################################################################################
-# Gets the timings from the oracle for all the given messages
-# Arguments:
-#   target   - subprocess: Target to interact with
-#   messages - [integer]:  List of all messages to get timnigs of
-# Return:
-#   [integer] A list of timings in an order corresponding to the list of given
-#             messages. Timings are number of clock cycles and may contain
-#             experimental noise.
-def get_timings(target, messages):
-	dts = []
-	for m in messages:
-		dt, ms = interact(target, "{0:X}".format(m))
-		dts.append(dt)
-	return dts
 
 ################################################################################
 # Determines whether or not the next iteration's calculations require a
 # reduction or not.
 # Arguments:
-#   m    - [integer]: List of messages in plain integer form
 #   t    - [integer]: List of messages timings
 #   ms   - [integer]: List of messages in montgomery form
 #   mts  - [integer]: List of m_temp in montgomery form
@@ -128,12 +131,11 @@ def get_timings(target, messages):
 #       M[2]    Set of messages s.t. (m_temp)^2 is done with a reduction
 #       M[3]    Set of messages s.t. (m_temp)^2 is done without a reduction
 #       F[n]    Sets of timing data corresponding to M[n]
-def internal_oracle(m, t, ms, mts, N, R, Ni):
-	if not (len(m) == len(t) and len(t) == len(ms) and len(ms) == len(mts)):
+def internal_oracle(t, ms, mts, N, R, Ni):
+	if not (len(t) == len(ms) and len(ms) == len(mts)):
 		raise ValueError("m, t, ms and mts should be the same length")
 
 	mts_ = [[], []]
-	M = [[], [], [], []]
 	F = [[], [], [], []]
 
 	for i in range(len(mts)):
@@ -141,26 +143,22 @@ def internal_oracle(m, t, ms, mts, N, R, Ni):
 		o1, _   = mont_mul(mts[i], ms[i], N, R, Ni)
 		o1, o1b = mont_mul(o1, o1, N, R, Ni)
 		if o1b:
-			M[0].append(m[i])
 			F[0].append(t[i])
 		else:
-			M[1].append(m[i])
 			F[1].append(t[i])
 
 		# Oracle 2 from Reference 1
 		o2, o2b = mont_mul(mts[i], mts[i], N, R, Ni)
 		if o2b:
-			M[2].append(m[i])
 			F[2].append(t[i])
 		else:
-			M[3].append(m[i])
 			F[3].append(t[i])
 
 		# Keep track of calculation for next m_temp (optimisation)
 		mts_[0].append(o2)
 		mts_[1].append(o1)
 
-	return mts_, M, F
+	return mts_, F
 
 ################################################################################
 # Analyses the timings
@@ -177,9 +175,9 @@ def analyse_timings(F, threshold):
 	diff1 = abs(F_mu[0] - F_mu[1])
 	diff2 = abs(F_mu[2] - F_mu[3])
 	k1_lt = F_mu[0] > F_mu[1]
-	k1_eq = abs(1.0 - F_mu[2] / F_mu[3]) < threshold
+	k1_eq = diff2 < threshold
 	k0_lt = F_mu[2] > F_mu[3]
-	k0_eq = abs(1.0 - F_mu[0] / F_mu[1]) < threshold
+	k0_eq = diff1 < threshold
 
 	if diff1 > diff2 and k1_lt and k1_eq:
 		return 1
@@ -201,19 +199,46 @@ def analyse_timings(F, threshold):
 	raise RuntimeError(e)
 
 ################################################################################
+# Checks if our key is correct after we append a 0 or 1 to it, as this attack
+# cannot work out the last bit.
+# Arguments:
+#   key - string:    Key in binary string representation
+#   cs  - [integer]: List of ciphertexts from target
+#   ps  - [integer]: List of plaintexts from target
+#   N   - integer:   RSA Public Modulus
+#   _b  - internal: do not use
+def check_key(key, cs, ps, N, _b="0"):
+	d  = int(key + _b, 2)
+	solved = False
+	for i in range(len(cs)):
+		if int(pow(cs[i], d, N)) == ps[i]:
+			solved = True
+		else:
+			solved = False
+			break
+	if solved:
+		return True, key + _b
+	elif _b == "0":
+		return check_key(key, cs, ps, N, "1")
+	else:
+		return False, key
+
+################################################################################
 # Performs the attack
 # Arguments:
 #   target      - subprocess: Target to interact with
 #   config_path - string:     Path to configuration file
+#   _attempts   - internal, do not specify.
 # Returns:
-#   string: Extracted material from the target
-def attack(target, config_path):
+#   string: Extracted material from the target, in this case a key in
+#           hexadecimal representation
+def attack(target, config_path, _attempts=0):
 	N_s, e_s = read_config(config_path)
 	N_i, e_i = convert_config(N_s, e_s)
 
 	# Compute the formatting string for challenges
 	global _challenge_format
-	_challenge_format = "{0:0" + str(len(N_s)) + "X}"
+	_challenge_format = "{0:X}"
 
 	# Generate Initial Key Parameters
 	key          = "1"
@@ -225,24 +250,53 @@ def attack(target, config_path):
 	R        = mont_findR(N)
 	_, _, Ni = xgcd(R, N)
 
-	# Generate Sample Messages and get timings
-	ms   = generate_messages(N, 1500)
-	ms_m = [mont_convert(m, N, R) for m in ms]
-	ts   = get_timings(target, ms)
+	# Generate Sample ciphertexts (messages) and get timings/plaintexts
+	ms     = generate_ciphertexts(N, 5000)
+	ms_m   = [mont_convert(m, N, R) for m in ms]
+	ts, ps = multi_interact(target, ms)
 
 	# Generate first m_temp and go into main attack loop
-	m_temp  = [mont_mul(m, m, N, R, Ni)[0] for m in ms_m]
-	m_temp_ = []
+	m_tmp     = [[], [mont_mul(m, m, N, R, Ni)[0] for m in ms_m]]
+	prv_m_tmp = [[], []]
 	while not found_key and len(key) <= max_key_size:
-		m_temp_next, M, F = internal_oracle(ms, ts, ms_m, m_temp, N, R, Ni)
-		bit               = analyse_timings(F, 0.001)
-		m_temp            = m_temp_next[bit]
+		# Step 1, Group messages based on internal oracle
+		nxt_m_tmp, F = internal_oracle(ts, ms_m, m_tmp[int(key[-1])], N, R, Ni)
 
-		key += str(bit)
-		print "[" + str(len(key)).rjust(3) \
-		      + "] Found bit " + str(bit) + ", Key So Far: " + key
+		# Step 2, Analyse the timings
+		bit = analyse_timings(F, 50)
+		# try:
+		# 	bit = analyse_timings(F, 50)
+		# except RuntimeError as e:
+		# 	print e.message
+		# 	if prv_m_tmp == [[], []]:
+		# 		if _attempts < 10: # Restart from scratch up to 10 times
+		# 			print "[" + str(len(key)).rjust(3) + "] Error Detected " \
+		# 				  +	"Again! Restarting attack..\n\n"
+		# 			return attack(target, config_path, _attempts+1)
+		# 		else:
+		# 			raise Exception("Cracking failed at the start or more " \
+		# 				            + "than once at a time too many times.")
+		# 	else: # We have a previous iteration to fall back to
+		# 		print "[" + str(len(key)).rjust(3) + "] Error Detected, " \
+		# 		      + "rolling back and trying with flipped key bit."
+		# 		m_tmp = prv_m_tmp
+		# 		prv_m_tmp = [[],[]]
+		# 		key = key[:-1] + "0" if key[-1] == "1" else key[:-1] + "1"
+		# 		continue
 
-	return "the key is \"memes\""
+		# Step 3, Check we haven't got the final key yet, and if not prepare for
+		#         next iteration, else we're done here.
+		key            = key + str(bit)
+		found_key, key = check_key(key, ms, ps, N)
+		prv_m_tmp      = m_tmp
+		m_tmp          = nxt_m_tmp
+
+		print "[keylen: " + str(len(key)).rjust(3) + "] Found bit " + str(bit) \
+		      + ", Key So Far: " + key
+
+	print "\n FOUND KEY, LENGTH " + str(len(key)) + "\n"
+
+	return "{0:X}".format(int(key, 2))
 
 ################################################################################
 # Main
@@ -269,7 +323,7 @@ def main():
 
 	version_warning()
 	global _interaction_count
-	print "Extracted Material: " + str(m)
+	print "Extracted Material: " + m
 	print "Interactions with Target: " + str(_interaction_count)
 
 ################################################################################
