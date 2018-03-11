@@ -163,6 +163,44 @@ def internal_oracle(m, t, ms, mts, N, R, Ni):
 	return mts_, M, F
 
 ################################################################################
+# Analyses the timings
+def analyse_timings(F, threshold):
+	F_mu = []
+	for i in range(4):
+		if len(F[i]) != 0:
+			F_mu.append(float(sum(F[i])) / len(F[i]))
+		else:
+			e = "Not enough samples, M" + str(i+1) + " had no elements"
+			raise RuntimeError(e)
+
+
+	diff1 = abs(F_mu[0] - F_mu[1])
+	diff2 = abs(F_mu[2] - F_mu[3])
+	k1_lt = F_mu[0] > F_mu[1]
+	k1_eq = abs(1.0 - F_mu[2] / F_mu[3]) < threshold
+	k0_lt = F_mu[2] > F_mu[3]
+	k0_eq = abs(1.0 - F_mu[0] / F_mu[1]) < threshold
+
+	if diff1 > diff2 and k1_lt and k1_eq:
+		return 1
+	if diff2 > diff1 and k0_lt and k0_eq:
+		return 0
+
+	e = "Timings were not as expected:\n"
+	e += "abs(mu(F1) - mu(F2)"
+	e += " > " if diff1 > diff2 else " < "
+	e += "abs(mu(F3) - mu(F4))\n"
+	e += "mu(F1) = " + "{0:6.2F}".format(F_mu[0]) + " | "
+	e += "    mu(F1) > mu(F2)\n" if k1_lt else "NOT mu(F1) > mu(F2)\n"
+	e += "mu(F2) = " + "{0:6.2F}".format(F_mu[1]) + " | "
+	e += "    mu(F3) = mu(F4)\n" if k1_eq else "NOT mu(F3) = mu(F4)\n"
+	e += "mu(F3) = " + "{0:6.2F}".format(F_mu[2]) + " | "
+	e += "    mu(F3) > mu(F4)\n" if k0_lt else "NOT mu(F3) > mu(F4)\n"
+	e += "mu(F4) = " + "{0:6.2F}".format(F_mu[3]) + " | "
+	e += "    mu(F1) = mu(F2)\n" if k0_eq else "NOT mu(F1) = mu(F2)\n"
+	raise RuntimeError(e)
+
+################################################################################
 # Performs the attack
 # Arguments:
 #   target      - subprocess: Target to interact with
@@ -179,7 +217,7 @@ def attack(target, config_path):
 
 	# Generate Initial Key Parameters
 	key          = "1"
-	max_key_size = 256
+	max_key_size = 16384
 	found_key    = False
 
 	# Generate Initial Montgomery Parameters
@@ -188,27 +226,23 @@ def attack(target, config_path):
 	_, _, Ni = xgcd(R, N)
 
 	# Generate Sample Messages and get timings
-	# messages   = generate_messages(N, 2000)
-	ms   = [7437547582898201166504790977009610016749607629859363723369068181167009518876199364654610230480145538179909148502618573185612444121691839267565803294923702420005740938330614081786981007239523341371497003489375266303038180338735276899083164028033783243467202599597567762300353895115906651794955198976961277782,
-	        28322960429222631649519165870154768807551969381586638880015921551868899479825915114670445913524003181840626189062434078298169148285240351148854593202066887026127177236564723164830250463764344731177585826562788177010357956222963602960797909232584786281688554448416696221018039806357035293662240436721652725740]
+	ms   = generate_messages(N, 1500)
 	ms_m = [mont_convert(m, N, R) for m in ms]
 	ts   = get_timings(target, ms)
 
+	# Generate first m_temp and go into main attack loop
+	m_temp  = [mont_mul(m, m, N, R, Ni)[0] for m in ms_m]
+	m_temp_ = []
 	while not found_key and len(key) <= max_key_size:
-		m_temp            = [mont_mul(m, m, N, R, Ni)[0] for m in ms_m]
 		m_temp_next, M, F = internal_oracle(ms, ts, ms_m, m_temp, N, R, Ni)
+		bit               = analyse_timings(F, 0.001)
+		m_temp            = m_temp_next[bit]
 
+		key += str(bit)
+		print "[" + str(len(key)).rjust(3) \
+		      + "] Found bit " + str(bit) + ", Key So Far: " + key
 
-	# print "M1"
-	# print M1
-	# print "M2"
-	# print M2
-	# print "M3"
-	# print M3
-	# print "M4"
-	# print M4
-
-	return "the message is memes"
+	return "the key is \"memes\""
 
 ################################################################################
 # Main
