@@ -132,9 +132,6 @@ def generate_ciphertexts(N, sample_size):
 #       M[3]    Set of messages s.t. (m_temp)^2 is done without a reduction
 #       F[n]    Sets of timing data corresponding to M[n]
 def internal_oracle(t, ms, mts, N, R, Ni):
-	if not (len(t) == len(ms) and len(ms) == len(mts)):
-		raise ValueError("m, t, ms and mts should be the same length")
-
 	mts_ = [[], []]
 	F = [[], [], [], []]
 
@@ -175,9 +172,9 @@ def analyse_timings(F, threshold):
 	diff1 = abs(F_mu[0] - F_mu[1])
 	diff2 = abs(F_mu[2] - F_mu[3])
 	k1_lt = F_mu[0] > F_mu[1]
-	k1_eq = diff2 < threshold
+	k1_eq = abs(1 - (F_mu[0] / F_mu[1])) < threshold
 	k0_lt = F_mu[2] > F_mu[3]
-	k0_eq = diff1 < threshold
+	k0_eq = abs(1 - (F_mu[2] / F_mu[3])) < threshold
 
 	if diff1 > diff2 and k1_lt and k1_eq:
 		return 1
@@ -196,7 +193,8 @@ def analyse_timings(F, threshold):
 	e += "    mu(F3) > mu(F4)\n" if k0_lt else "NOT mu(F3) > mu(F4)\n"
 	e += "mu(F4) = " + "{0:6.2F}".format(F_mu[3]) + " | "
 	e += "    mu(F1) = mu(F2)\n" if k0_eq else "NOT mu(F1) = mu(F2)\n"
-	raise RuntimeError(e)
+	# raise RuntimeError(e)
+	return -1
 
 ################################################################################
 # Checks if our key is correct after we append a 0 or 1 to it, as this attack
@@ -224,6 +222,19 @@ def check_key(key, cs, ps, N, _b="0"):
 		return False, key
 
 ################################################################################
+# Add ciphertexts to current collection
+def add_samples(target, size, N, R, cs, cs_m, ts, ps):
+	old_len = len(cs)
+	cs.extend(generate_ciphertexts(N, size))
+	for i in range(size):
+		c = cs[old_len + i]
+		cs_m.append(mont_convert(c, N, R))
+		t, p = interact(target, _challenge_format.format(c))
+		ts.append(t)
+		ps.append(p)
+	return cs, cs_m, ts, ps
+
+################################################################################
 # Performs the attack
 # Arguments:
 #   target      - subprocess: Target to interact with
@@ -242,6 +253,7 @@ def attack(target, config_path, _attempts=0):
 
 	# Generate Initial Key Parameters
 	key          = "1"
+	key_bits_err = [1]
 	max_key_size = 16384
 	found_key    = False
 
@@ -251,51 +263,55 @@ def attack(target, config_path, _attempts=0):
 	_, _, Ni = xgcd(R, N)
 
 	# Generate Sample ciphertexts (messages) and get timings/plaintexts
-	ms     = generate_ciphertexts(N, 5000)
+	ms     = generate_ciphertexts(N, 2000)
 	ms_m   = [mont_convert(m, N, R) for m in ms]
 	ts, ps = multi_interact(target, ms)
 
 	# Generate first m_temp and go into main attack loop
-	m_tmp     = [[], [mont_mul(m, m, N, R, Ni)[0] for m in ms_m]]
-	prv_m_tmp = [[], []]
+	m_tmp = [[], [mont_mul(m, m, N, R, Ni)[0] for m in ms_m]]
 	while not found_key and len(key) <= max_key_size:
+		# Initialise more key_bits_error positions
+		while len(key_bits_err) <= len(key)+1:
+			key_bits_err.append(1)
+
 		# Step 1, Group messages based on internal oracle
 		nxt_m_tmp, F = internal_oracle(ts, ms_m, m_tmp[int(key[-1])], N, R, Ni)
 
 		# Step 2, Analyse the timings
-		bit = analyse_timings(F, 50)
-		# try:
-		# 	bit = analyse_timings(F, 50)
-		# except RuntimeError as e:
-		# 	print e.message
-		# 	if prv_m_tmp == [[], []]:
-		# 		if _attempts < 10: # Restart from scratch up to 10 times
-		# 			print "[" + str(len(key)).rjust(3) + "] Error Detected " \
-		# 				  +	"Again! Restarting attack..\n\n"
-		# 			return attack(target, config_path, _attempts+1)
-		# 		else:
-		# 			raise Exception("Cracking failed at the start or more " \
-		# 				            + "than once at a time too many times.")
-		# 	else: # We have a previous iteration to fall back to
-		# 		print "[" + str(len(key)).rjust(3) + "] Error Detected, " \
-		# 		      + "rolling back and trying with flipped key bit."
-		# 		m_tmp = prv_m_tmp
-		# 		prv_m_tmp = [[],[]]
-		# 		key = key[:-1] + "0" if key[-1] == "1" else key[:-1] + "1"
-		# 		continue
+		bit = analyse_timings(F, 0.01)
+
+		# Step 2.5, Check if the timings didn't work out, and error correct
+		if bit < 0:
+			# Work out how far to backtrack from our array
+			pos       = len(key) + 1
+			backtrack = min(len(key)-1, sum(key_bits_err[pos-1:pos+1]))
+			old_key   = key
+			# Backtrack key, with flipped bit
+			flip = int(key[-backtrack]) ^ 1
+			key  = key[:-backtrack] + str(flip)
+			# Add samples
+			ms, ms_m, ts, ps = add_samples(target, 250, N, R, ms, ms_m, ts, ps)
+			# Regenerate m_tmp
+			tmp         = [int(pow(pow(m, int(key, 2), N), 2, N)) for m in ms]
+			m_tmp[flip] = [mont_convert(m, N, R) for m in tmp]
+
+			print "[keylen: " + str(len(key)).rjust(3) + "] [samples: " +      \
+			      str(len(ms)).rjust(5) + "] Error Detected, rolling back " +  \
+			      str(backtrack) + " bits! Key was: " + old_key
+			key_bits_err[pos] *= 2
+			continue
+
+		key = key + str(bit)
+		print "[keylen: " + str(len(key)).rjust(3) + "] [samples: " +          \
+		      str(len(ms)).rjust(5) + "] Found bit " + str(bit) +              \
+		      ", Key so far: " + key
 
 		# Step 3, Check we haven't got the final key yet, and if not prepare for
 		#         next iteration, else we're done here.
-		key            = key + str(bit)
 		found_key, key = check_key(key, ms, ps, N)
-		prv_m_tmp      = m_tmp
 		m_tmp          = nxt_m_tmp
 
-		print "[keylen: " + str(len(key)).rjust(3) + "] Found bit " + str(bit) \
-		      + ", Key So Far: " + key
-
-	print "\n FOUND KEY, LENGTH " + str(len(key)) + "\n"
-
+	print "\nFOUND KEY, LENGTH " + str(len(key)) + ", KEY: " + key + "\n"
 	return "{0:X}".format(int(key, 2))
 
 ################################################################################
