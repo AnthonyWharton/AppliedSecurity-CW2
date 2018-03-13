@@ -206,7 +206,7 @@ def analyse_timings(F, threshold):
 def check_key(key, cs, ps, N, _b="0"):
 	d  = int(key + _b, 2)
 	solved = False
-	for i in range(len(cs)):
+	for i in range(min(1000, len(cs))):
 		if int(pow(cs[i], d, N)) == ps[i]:
 			solved = True
 		else:
@@ -220,7 +220,19 @@ def check_key(key, cs, ps, N, _b="0"):
 		return False, key
 
 ################################################################################
-# Add ciphertexts to current collection
+# Add ciphertexts and auxillary data to current collection
+# Arguments:
+#   target - subprocess: Target to interact with
+#   size   - integer:    Amount of samples to add
+#   N      - integer:    RSA Public Exponent
+#   R      - integer:    Montgomery Parameter
+#   cs     - [integer]:  List of current generated ciphertexts (integer form)
+#   cs_m   - [integer]:  List of current generated ciphertexts (montgomery form)
+#   ts     - [integer]:  List of timing data for the given ciphertexts
+#   ps     - [integer]:  List of plaintexts for the given ciphertexts
+# Return:
+#   4-tuple of [integer], cs, cs_m, ts, ps, as in the arguments but updated with
+#                         with the new `size` samples.
 def add_samples(target, size, N, R, cs, cs_m, ts, ps):
 	old_len = len(cs)
 	cs.extend(generate_ciphertexts(N, size))
