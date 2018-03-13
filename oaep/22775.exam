@@ -1,14 +1,31 @@
 Q.1 Consider the parameters N = 3551, e = 5, d = 1373, and c = 888, all
     represented in decimal.  Use them to explain, in your own words, the
     principle of this attack (e.g., how and why it works).
+
+A.1 TODO
+
+================================================================================
+
 Q.2 To prevent the attack, the vendor suggests altering the software: the
     idea is that no matter what error occurs, the same error code will be
     produced.  Explain whether (and why, or why not) this change alone is
     sufficient.
+
+A.2 TODO
+
+================================================================================
+
 Q.3 Ignoring the use of countermeasures, carefully detail any situations
     where your implementation of this attack could fail; given more time,
     what could you do to resolve this?
+
+A.3 TODO
+
+================================================================================
+
 Q.8 Imagine you are a security consultant, employed by the device vendor.
     The vendor has heard that exponent and message blinding can be used to
     prevent some side-channel attacks on RSA.  Explain whether these
     techniques would prevent this attack, and why.
+
+A.8 TODO
