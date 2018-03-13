@@ -165,9 +165,7 @@ def analyse_timings(F, threshold):
 		if len(F[i]) != 0:
 			F_mu.append(float(sum(F[i])) / len(F[i]))
 		else:
-			e = "Not enough samples, M" + str(i+1) + " had no elements"
-			raise RuntimeError(e)
-
+			F_mu.append(0)
 
 	diff1 = abs(F_mu[0] - F_mu[1])
 	diff2 = abs(F_mu[2] - F_mu[3])
