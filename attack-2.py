@@ -289,7 +289,7 @@ def attack(target, config_path):
 	_, _, Ni = xgcd(R, N)
 
 	# Generate Sample ciphertexts (messages) and get timings/plaintexts
-	ms     = generate_ciphertexts(N, 1500) # number is initial samples
+	ms     = generate_ciphertexts(N, 2500) # number is initial samples
 	ms_m   = [mont_convert(m, N, R) for m in ms]
 	ts, ps = multi_interact(target, ms)
 
@@ -393,7 +393,7 @@ def main():
 	m = attack(target, config_path)
 	end = time.time()
 	print "Time Taken: " + str(end - start) + " seconds\n"
-	
+
 	version_warning()
 	global _interaction_count
 	print "Extracted Material: " + m

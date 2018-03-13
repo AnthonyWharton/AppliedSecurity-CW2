@@ -17,7 +17,7 @@ So that we can calibrate and improve the assignment in the future, give us
 a rough idea how long (in hours) you spent on it *in total*:
 
 effort : stage 1 -> 16 hours
-effort : stage 2 -> [...] hours
+effort : stage 2 -> 22 hours
 effort : stage 3 -> [...] hours
 effort : stage 4 -> [...] hours
 
