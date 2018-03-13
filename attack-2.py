@@ -351,7 +351,7 @@ def attack(target, config_path):
 
 		# Step 3, Check we haven't got the final key yet, and if not prepare for
 		#         next iteration, else we're done here.
-		found_key, key = check_key(key, ms_m, ps, N)
+		found_key, key = check_key(key, ms, ps, N)
 		m_tmp          = nxt_m_tmp
 
 	end = time.time()
