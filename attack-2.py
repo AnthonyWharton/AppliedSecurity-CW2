@@ -249,11 +249,10 @@ def add_samples(target, size, N, R, cs, cs_m, ts, ps):
 # Arguments:
 #   target      - subprocess: Target to interact with
 #   config_path - string:     Path to configuration file
-#   _attempts   - internal, do not specify.
 # Returns:
 #   string: Extracted material from the target, in this case a key in
 #           hexadecimal representation
-def attack(target, config_path, _attempts=0):
+def attack(target, config_path):
 	N_s, e_s = read_config(config_path)
 	N_i, e_i = convert_config(N_s, e_s)
 
@@ -263,9 +262,17 @@ def attack(target, config_path, _attempts=0):
 
 	# Generate Initial Key Parameters
 	key          = "1"
-	key_bits_err = [1]
+	key_bits_err = [1] # amount of times error occurred in one position, we use
+	                   # this to backtrack further as the error is likely to be
+	                   # further back, as opposed to this position
 	max_key_size = 16384
 	found_key    = False
+
+	# Error parameters
+	restart_count = 5   # after how many errors to restart from scratch
+	sample_add    = 250 # how many samples to add on an error
+	lc            = 3   # how much locality to take into account when checking
+	                    # how far to backtrack from key_bits_err
 
 	# Generate Initial Montgomery Parameters
 	N        = N_i
@@ -273,12 +280,14 @@ def attack(target, config_path, _attempts=0):
 	_, _, Ni = xgcd(R, N)
 
 	# Generate Sample ciphertexts (messages) and get timings/plaintexts
-	ms     = generate_ciphertexts(N, 2000)
+	ms     = generate_ciphertexts(N, 2000) # number is initial samples
 	ms_m   = [mont_convert(m, N, R) for m in ms]
 	ts, ps = multi_interact(target, ms)
 
 	# Generate first m_temp and go into main attack loop
-	m_tmp = [[], [mont_mul(m, m, N, R, Ni)[0] for m in ms_m]]
+	m_tmp   = [[], [mont_mul(m, m, N, R, Ni)[0] for m in ms_m]]
+	err_cnt = 0
+	print "Everything initialised, starting key recovery..."
 	while not found_key and len(key) <= max_key_size:
 		# Initialise more key_bits_error positions
 		while len(key_bits_err) <= len(key)+1:
@@ -292,23 +301,37 @@ def attack(target, config_path, _attempts=0):
 
 		# Step 2.5, Check if the timings didn't work out, and error correct
 		if bit < 0:
-			# Work out how far to backtrack from our array
-			pos       = len(key) + 1
-			backtrack = min(len(key)-1, sum(key_bits_err[pos-1:pos+1]))
-			old_key   = key
-			# Backtrack key, with flipped bit
-			flip = int(key[-backtrack]) ^ 1
-			key  = key[:-backtrack] + str(flip)
+			err_cnt += 1
+			if err_cnt % restart_count == 0: # If we've had too many errors, restart
+				i         = len(key) + 1 # point at which error occurred
+				backtrack = "to beginning"
+				old_key   = key
+				key       = "1"
+				flip      = 1
+				for i in range(len(key_bits_err)):
+					key_bits_err[i] += 1
+			else: # Else, backtrack slightly
+				# Work out how far to backtrack from our array
+				i         = len(key) + 1 # point at which error occurred
+				bt_sum    = sum(key_bits_err[max(0,i-lc):min(len(key),i+lc)])
+				backtrack = max(0, min(len(key)-1, bt_sum))
+				old_key   = key
+				# Backtrack key, with flipped bit
+				flip = int(key[-backtrack]) ^ 1
+				key  = key[:-backtrack] + str(flip)
 			# Add samples
-			ms, ms_m, ts, ps = add_samples(target, 250, N, R, ms, ms_m, ts, ps)
+			ms, ms_m, ts, ps = add_samples(target, sample_add, N, R,
+			                               ms, ms_m, ts, ps)
+
 			# Regenerate m_tmp
 			tmp         = [int(pow(pow(m, int(key, 2), N), 2, N)) for m in ms]
 			m_tmp[flip] = [mont_convert(m, N, R) for m in tmp]
 
 			print "[keylen: " + str(len(key)).rjust(3) + "] [samples: " +      \
 			      str(len(ms)).rjust(5) + "] Error Detected, rolling back " +  \
-			      str(backtrack) + " bits! Key was: " + old_key
-			key_bits_err[pos] *= 2
+			      str(backtrack) + "! Key was: " + old_key
+			if isinstance(i, int):
+				key_bits_err[i] *= 2
 			continue
 
 		key = key + str(bit)
@@ -321,7 +344,18 @@ def attack(target, config_path, _attempts=0):
 		found_key, key = check_key(key, ms, ps, N)
 		m_tmp          = nxt_m_tmp
 
-	print "\nFOUND KEY, LENGTH " + str(len(key)) + ", KEY: " + key + "\n"
+	print ""
+	if err_cnt == 0:
+		print "Brilliant! No errors whilst finding the key!"
+	elif err_cnt < restart_count:
+		print "Wonderful, only " +str(err_cnt)+" error(s) detected that time."
+	elif err_cnt < restart_count*3:
+		print "Oh no, "+str(err_cnt)+" errors detected, so there was " + \
+			  "some restarting action going on there.."
+	else:
+		print "At least we made it.. eventually.. I'm sorry you had to " + \
+		      "witness all "+str(err_cnt)+" errors detected.."
+	print "FOUND KEY, LENGTH "+str(len(key))+", KEY: "+key+"\n"
 	return "{0:X}".format(int(key, 2))
 
 ################################################################################
