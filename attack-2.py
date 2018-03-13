@@ -1,4 +1,4 @@
-import sys, subprocess, random
+import sys, subprocess, random, time
 from montgomery import *
 
 ################################################################################
@@ -159,6 +159,12 @@ def internal_oracle(t, ms, mts, N, R, Ni):
 
 ################################################################################
 # Analyses the timings
+# Arguments:
+#   F         - [[integer]]: 4 lists of timing data grouped according to
+#                            the internal oracle
+#   threshold - float:       The threshold for approximately equal checking
+# Return:
+#   integer: 0 or 1 for which bit we believe the key to be, or -1 if error
 def analyse_timings(F, threshold):
 	F_mu = []
 	for i in range(4):
@@ -179,18 +185,18 @@ def analyse_timings(F, threshold):
 	if diff2 > diff1 and k0_lt and k0_eq:
 		return 0
 
-	e = "Timings were not as expected:\n"
-	e += "abs(mu(F1) - mu(F2)"
-	e += " > " if diff1 > diff2 else " < "
-	e += "abs(mu(F3) - mu(F4))\n"
-	e += "mu(F1) = " + "{0:6.2F}".format(F_mu[0]) + " | "
-	e += "    mu(F1) > mu(F2)\n" if k1_lt else "NOT mu(F1) > mu(F2)\n"
-	e += "mu(F2) = " + "{0:6.2F}".format(F_mu[1]) + " | "
-	e += "    mu(F3) = mu(F4)\n" if k1_eq else "NOT mu(F3) = mu(F4)\n"
-	e += "mu(F3) = " + "{0:6.2F}".format(F_mu[2]) + " | "
-	e += "    mu(F3) > mu(F4)\n" if k0_lt else "NOT mu(F3) > mu(F4)\n"
-	e += "mu(F4) = " + "{0:6.2F}".format(F_mu[3]) + " | "
-	e += "    mu(F1) = mu(F2)\n" if k0_eq else "NOT mu(F1) = mu(F2)\n"
+	# e = "Timings were not as expected:\n"
+	# e += "abs(mu(F1) - mu(F2)"
+	# e += " > " if diff1 > diff2 else " < "
+	# e += "abs(mu(F3) - mu(F4))\n"
+	# e += "mu(F1) = " + "{0:6.2F}".format(F_mu[0]) + " | "
+	# e += "    mu(F1) > mu(F2)\n" if k1_lt else "NOT mu(F1) > mu(F2)\n"
+	# e += "mu(F2) = " + "{0:6.2F}".format(F_mu[1]) + " | "
+	# e += "    mu(F3) = mu(F4)\n" if k1_eq else "NOT mu(F3) = mu(F4)\n"
+	# e += "mu(F3) = " + "{0:6.2F}".format(F_mu[2]) + " | "
+	# e += "    mu(F3) > mu(F4)\n" if k0_lt else "NOT mu(F3) > mu(F4)\n"
+	# e += "mu(F4) = " + "{0:6.2F}".format(F_mu[3]) + " | "
+	# e += "    mu(F1) = mu(F2)\n" if k0_eq else "NOT mu(F1) = mu(F2)\n"
 	# raise RuntimeError(e)
 	return -1
 
@@ -203,6 +209,9 @@ def analyse_timings(F, threshold):
 #   ps  - [integer]: List of plaintexts from target
 #   N   - integer:   RSA Public Modulus
 #   _b  - internal: do not use
+# Return:
+#   2-tuple of bool, string: whether or not the check succeeded and the key it
+#                            succeeded with
 def check_key(key, cs, ps, N, _b="0"):
 	d  = int(key + _b, 2)
 	solved = False
@@ -220,7 +229,7 @@ def check_key(key, cs, ps, N, _b="0"):
 		return False, key
 
 ################################################################################
-# Add ciphertexts and auxillary data to current collection
+# Add ciphertexts and auxiliary data to current collection
 # Arguments:
 #   target - subprocess: Target to interact with
 #   size   - integer:    Amount of samples to add
@@ -256,9 +265,10 @@ def attack(target, config_path):
 	N_s, e_s = read_config(config_path)
 	N_i, e_i = convert_config(N_s, e_s)
 
-	# Compute the formatting string for challenges
+	# Compute the formatting string for challenges and start timer
 	global _challenge_format
 	_challenge_format = "{0:X}"
+	start = time.time()
 
 	# Generate Initial Key Parameters
 	key          = "1"
@@ -270,8 +280,8 @@ def attack(target, config_path):
 
 	# Error parameters
 	restart_count = 5   # after how many errors to restart from scratch
-	sample_add    = 250 # how many samples to add on an error
-	lc            = 3   # how much locality to take into account when checking
+	sample_add    = 500 # how many samples to add on an error
+	lc            = 4   # how much locality to take into account when checking
 	                    # how far to backtrack from key_bits_err
 
 	# Generate Initial Montgomery Parameters
@@ -280,7 +290,7 @@ def attack(target, config_path):
 	_, _, Ni = xgcd(R, N)
 
 	# Generate Sample ciphertexts (messages) and get timings/plaintexts
-	ms     = generate_ciphertexts(N, 2000) # number is initial samples
+	ms     = generate_ciphertexts(N, 1500) # number is initial samples
 	ms_m   = [mont_convert(m, N, R) for m in ms]
 	ts, ps = multi_interact(target, ms)
 
@@ -302,8 +312,8 @@ def attack(target, config_path):
 		# Step 2.5, Check if the timings didn't work out, and error correct
 		if bit < 0:
 			err_cnt += 1
-			if err_cnt % restart_count == 0: # If we've had too many errors, restart
-				i         = len(key) + 1 # point at which error occurred
+			if err_cnt % restart_count == 0: # Too many errors, restart
+				i         = len(key) + 1 # Point at which error occurred
 				backtrack = "to beginning"
 				old_key   = key
 				key       = "1"
@@ -312,7 +322,7 @@ def attack(target, config_path):
 					key_bits_err[i] += 1
 			else: # Else, backtrack slightly
 				# Work out how far to backtrack from our array
-				i         = len(key) + 1 # point at which error occurred
+				i         = len(key) + 1 # Point at which error occurred
 				bt_sum    = sum(key_bits_err[max(0,i-lc):min(len(key),i+lc)])
 				backtrack = max(0, min(len(key)-1, bt_sum))
 				old_key   = key
@@ -328,23 +338,26 @@ def attack(target, config_path):
 			m_tmp[flip] = [mont_convert(m, N, R) for m in tmp]
 
 			print "[keylen: " + str(len(key)).rjust(3) + "] [samples: " +      \
-			      str(len(ms)).rjust(5) + "] Error Detected, rolling back " +  \
+			      str(len(ms_m)).rjust(5) + "] Error Detected, rolling back " +\
 			      str(backtrack) + "! Key was: " + old_key
-			if isinstance(i, int):
+			if isinstance(backtrack, int):
 				key_bits_err[i] *= 2
 			continue
 
 		key = key + str(bit)
 		print "[keylen: " + str(len(key)).rjust(3) + "] [samples: " +          \
-		      str(len(ms)).rjust(5) + "] Found bit " + str(bit) +              \
+		      str(len(ms_m)).rjust(5) + "] Found bit " + str(bit) +            \
 		      ", Key so far: " + key
 
 		# Step 3, Check we haven't got the final key yet, and if not prepare for
 		#         next iteration, else we're done here.
-		found_key, key = check_key(key, ms, ps, N)
+		found_key, key = check_key(key, ms_m, ps, N)
 		m_tmp          = nxt_m_tmp
 
-	print ""
+	end = time.time()
+	# Print time taken
+	print "\nDone, in " + str(end-start)+  " seconds."
+	# Print meta sarcastic error stats
 	if err_cnt == 0:
 		print "Brilliant! No errors whilst finding the key!"
 	elif err_cnt < restart_count:
@@ -355,6 +368,7 @@ def attack(target, config_path):
 	else:
 		print "At least we made it.. eventually.. I'm sorry you had to " + \
 		      "witness all "+str(err_cnt)+" errors detected.."
+	# Final key printout
 	print "FOUND KEY, LENGTH "+str(len(key))+", KEY: "+key+"\n"
 	return "{0:X}".format(int(key, 2))
 
