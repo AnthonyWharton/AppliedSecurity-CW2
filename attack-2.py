@@ -265,10 +265,9 @@ def attack(target, config_path):
 	N_s, e_s = read_config(config_path)
 	N_i, e_i = convert_config(N_s, e_s)
 
-	# Compute the formatting string for challenges and start timer
+	# Compute the formatting string for challenges
 	global _challenge_format
 	_challenge_format = "{0:X}"
-	start = time.time()
 
 	# Generate Initial Key Parameters
 	key          = "1"
@@ -354,9 +353,6 @@ def attack(target, config_path):
 		found_key, key = check_key(key, ms, ps, N)
 		m_tmp          = nxt_m_tmp
 
-	end = time.time()
-	# Print time taken
-	print "\nDone, in " + str(end-start)+  " seconds."
 	# Print meta sarcastic error stats
 	if err_cnt == 0:
 		print "Brilliant! No errors whilst finding the key!"
@@ -393,8 +389,11 @@ def main():
 	                          stdin=subprocess.PIPE)
 
 	# Execute the attack
+	start = time.time()
 	m = attack(target, config_path)
-
+	end = time.time()
+	print "Time Taken: " + str(end - start) + " seconds\n"
+	
 	version_warning()
 	global _interaction_count
 	print "Extracted Material: " + m

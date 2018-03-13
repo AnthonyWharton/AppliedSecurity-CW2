@@ -1,4 +1,4 @@
-import sys, subprocess, math, hashlib
+import sys, subprocess, math, hashlib, time
 
 # Reference 1:
 # Manger, J., 2001, August. A chosen ciphertext attack on RSA optimal asymmetric
@@ -316,7 +316,10 @@ def main():
 	                          stdin=subprocess.PIPE)
 
 	# Execute the attack
+	start = time.time()
 	m = attack(target, config_path)
+	end = time.time()
+	print "Time Taken: " + str(end-start) + " seconds\n"
 
 	version_warning()
 	global _interaction_count
