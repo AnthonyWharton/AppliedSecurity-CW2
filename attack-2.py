@@ -410,17 +410,16 @@ def main():
 #   (on lab machines at the time of writing) or 2.6.6 (on snowy at the time of
 #   writing)
 def version_warning():
-	if not sys.version_info[:3] == (2,6,6) and \
-	   not sys.version_info[:3] == (2,7,5):
+	if not sys.version_info[:3] == (2,7,5):
 		print "!" * 80
 		print "!!!!" + " " * 13 + \
 		      "WARNING, RUNNING ON UNTESTED VERSION OF PYTHON" + \
 		      " " * 13 + "!!!!"
 		print "!!!!" + " There could be untested behaviour, thus " + \
 		      "it is recommended you run with " + "!" * 4
-		print "!!!!" + " " * 10 + \
-		      "Python 2.6.6/2.7.5 or compatible for optimum results" + \
-		      " " * 10 + "!!!!"
+		print "!!!!" + " " * 13 + \
+		      "Python 2.7.5 or compatible for optimum results" + \
+		      " " * 13 + "!!!!"
 		print "!" * 80
 
 ################################################################################
