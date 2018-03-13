@@ -127,7 +127,7 @@ def interact(target, label, ciphertext):
 	target.stdin.write(ciphertext + "\n")
 	target.stdin.flush()
 	global _interaction_count
-	_challenge_count = _interaction_count + 1
+	_interaction_count = _interaction_count + 1
 	return int(target.stdout.readline().strip())
 
 ################################################################################
