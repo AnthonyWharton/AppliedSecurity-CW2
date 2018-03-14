@@ -19,7 +19,57 @@ Q.3 Your implementation of this attack will use some form of statistical
     test.  Explain what test you have used, how it works, and also how it
     compares with at least one alternative.
 
-A.3 TODO
+A.3 My implementation uses quite a naive statistical test for checking what a
+    bit is, by comparing the means of the different subsets of timing data.
+    As all the sample ciphertexts are calculated locally, the result on whether
+    or not they are reduced splits them into different subsets.  The timing
+    information associated with the messages are then, by definition also sorted
+    into sets.  I average the times in each of the sets, and then work out some
+    inequalities:
+
+    F_mu[X] is the average time for data set X.
+    F_mu[X] corresponds to F[X+1] as labelled in the paper.
+
+    diff1 = abs(F_mu[0] - F_mu[1])
+	diff2 = abs(F_mu[2] - F_mu[3])
+	k1_lt = F_mu[0] > F_mu[1]
+	k1_eq = abs(1 - (F_mu[0] / F_mu[1])) < threshold
+	k0_lt = F_mu[2] > F_mu[3]
+	k0_eq = abs(1 - (F_mu[2] / F_mu[3])) < threshold
+
+    After working out the preceding boolean values. First diff1 is compared with
+    diff2.  If diff1 > diff2 we know that it is likely that F_mu[2] and F_mu[3]
+    are closer together, perhaps even approximately equal as the paper suggests.
+    This suggests that the bit should be a 1.  In the case where diff2 > diff1,
+    the opposite is suggested, and the bit appears that it should be a 0.  After
+    establishing this, I also check the inequalities provided by the paper.
+    These variable are named accordingly:
+
+    k1    - for checks if the bit is a 1
+    k0    - for checks if the bit is a 0
+       lt - for the F_mu[N] >  F_mu[N+1] check
+       eq - for the F_mu[N] ~= F_mu[N+1] check.
+
+    These checks are also applied with the diff checks, meaning that if we pass
+    all the checks for a 0/1 bit case, we can be fairly certain that this is in
+    fact the bit we are looking for.  However, should any of these checks fail,
+    there is some ambiguity/error to what is expected in the mathematics, and
+    thus and error is returned.
+
+    This statistical test is reasonably accurate, however can be "tricked" by
+    improper timing data.  Be it from noise, deliberate error from the target
+    or any other means, if the data is not accurate, erroneous results can
+    repeatedly occur, causing the implementation to loop - or worse, errors
+    could be falsely reported or not reported at all!
+
+    An alternative method of statistical analysis could be calibrated to know
+    the time taken for a calculation to occur, and how that corresponds to the
+    internal implementation that is used to check whether a reduction occurs.
+    Then the timing data observed from the target, could be correlated with the
+    calibrated timing data achieved locally (assumed to be with little to no
+    error).  At this point timing samples could be identified to be erroneous
+    and thus discarded, allowing for the remainder of the statistical analysis
+    to be carried our with much greater accuracy.
 
 ================================================================================
 

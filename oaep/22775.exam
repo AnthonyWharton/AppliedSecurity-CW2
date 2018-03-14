@@ -41,15 +41,15 @@ A.1 In this attack we wish to work our some f, such that (f * m) is in a set of
     this attack.  We wish to have f_2 * m in [N, N+B].  To achieve this we set
     an f_2 which is in [N+B/2, N+B], and query the oracle.
 
-    f_2 = floor((N+B)/B) + (f_1/2)
+    f_2 = floor((N+B)/B) + (f_1/2) = 28 (initially, from given numbers)
 
-    We already know from earlier that f_1/2  is in [B/2, B]
+    We already know from earlier that f_1 / 2 is in [B/2, B];
       f_2 * m
     = floor((N+B)/B) * (f_1/2) * m
       is in [floor((N+B)/B) * B/2, floor((N+B)/B) * B]
             [N+B/2               , N+B               ]
 
-    We send (f_2^e * m) to the oracle, and receive back ">=B".  In this case we
+    We send (f_2^e * c) to the oracle, and receive back ">=B".  In this case we
     add (f_1 / 2) to this value, raising the lower bound, until we have a
     modular wrap around.  This eventually leaves us with an f_2 such that
     f_2 * m is in [N, N+B].
