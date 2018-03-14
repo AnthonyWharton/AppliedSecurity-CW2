@@ -27,16 +27,16 @@ Q.8 Imagine you read a research paper that suggests a larger key (e.g.,
     2048-bit rather than 1024-bit) could help to prevent this attack.
     Explain whether and why you think this is right (or wrong).
 
-A.8 I would describe this to be categorically wrong. Increased key size will not
-    prevent attack, just increase the amount of time taken for the attack to be
-    carried out. This is due to the fact that on any reasonably modern bit of
-    hardware, with a reasonably optimised implementation, the runtime of the
+A.8 I would describe this to be categorically wrong.  Increased key size will
+    not prevent attack, just increase the amount of time taken for the attack to
+    be carried out.  This is due to the fact that on any reasonably modern bit
+    of hardware, with a reasonably optimised implementation, the runtime of the
     attack would not slow that drastically, even at these larger key sizes.
 
-    At every iteration of the attack can run in roughly "constant" time. By that
-    I mean, no computation should need to be done that is linked to the key
-    size. In my implementation, if an error occurs the data has to be
-    regenerated, which would take longer at larger key sizes. But this is purely
+    At every iteration of the attack can run in roughly "constant" time.  By
+    that I mean, no computation should need to be done that is linked to the key
+    size.  In my implementation, if an error occurs the data has to be
+    regenerated, which would take longer at larger key sizes.  But this is purely
     down to the implementation complexity/time spent to reward ratio (laziness),
     and not infeasible, a fully dynamic programming approach would be possible
-    here with acceptable memory usage.
+    here that would solve this with acceptable memory usage.
