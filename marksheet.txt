@@ -98,7 +98,7 @@ Stage 1:
 
 Stage 2:
     Expected Run Time:
-        Tested on a lab machine, I get anywhere from around 10 seconds with no
+        Tested on a lab machine, I get anywhere from around 15 seconds with no
         errors being picked up, to up to 45-60 seconds in unlucky cases with 15+
         errors. (With given test files.)
     Error Checking Strategy:
