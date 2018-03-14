@@ -2,7 +2,95 @@ Q.1 Consider the parameters N = 3551, e = 5, d = 1373, and c = 888, all
     represented in decimal.  Use them to explain, in your own words, the
     principle of this attack (e.g., how and why it works).
 
-A.1 TODO
+A.1 In this attack we wish to work our some f, such that (f * m) is in a set of
+    bounds that we can minimise. In our implementation we choose (f^e * c) as
+    these values are public to us as the adversary and we know that:
+
+      (f^e * c)^d
+    = (f^e * m^e)^d
+    = ((f * m)^e)^d
+    = f * m
+
+    To determine some bounds to minimise for our attack, we exploit error
+    messages from the oracle. To help do this we mathematically reason about a
+    variable B that we can ascertain from the implementation:
+
+    B = 2^(8*(ceil(log_256(N)) - 1)
+    Thus, B = 256 for the given example numbers.
+
+    Intuitively speaking, we can think of B to be the maximum number represented
+    by one less byte than that used by N. We can exploit the implementation of
+    the target's varying error messages to find B, as it it is the boundary
+    where decryption fails - as messages must start with two 0's in the octet
+    string.
+
+    After determining this B, we continue to find the bounds for our original
+    expression: (f * m). We start by looking at an f_1.
+
+    Programmatically we loop through powers of 2 until we find the power of 2
+    that cross the boundary from the range [0, B] to [B, N]. We set up an oracle
+    that interprets the error messages from the attack target, and returns
+    whether or not the decryption was "<B" or ">=B". As we receive "<B" from our
+    oracle we know that f_1 was in [0, B] and thus 2*f_1 was in [0, 2B].
+    When we change from receiving "<B" to ">=B" we thus know our f_1 is in the
+    range [B, 2B]. These bounds become clearer later
+
+    Doing this step with the given example numbers results in us finding f_1 = 4
+
+    Now we work on a new f_2 that allows us to make our bounds more useful for
+    this attack. We wish to have f_2 * m in [N, N+B]. To achieve this we set an
+    f_2 which is in [N+B/2, N+B], and query the oracle.
+
+    f_2 = floor((N+B)/B) + (f_1/2)
+
+    We already know from earlier that f_1/2  is in [B/2, B]
+      f_2 * m
+    = floor((N+B)/B) * (f_1/2) * m
+      is in [floor((N+B)/B) * B/2, floor((N+B)/B) * B]
+            [N+B/2               , N+B               ]
+
+    We send (f_2^e * m) to the oracle, and receive back ">=B". In this case we
+    add (f_1 / 2) to this value, raising the lower bound, until we have a
+    modular wrap around. This eventually leaves us with an f_2 such that
+    f_2 * m is in [N, N+B].
+
+    Doing this with the given example numbers results in us finding f_2 = 30
+
+    Now that we have an f_2 in the bounds of [N, N+B], we can work out a minimum
+    and maximum value of m with:
+
+    m_min = ceil ( N    / f_2) = 119 } for the given
+    m_max = floor((N+B) / f_2) = 126 } example numbers
+
+    The last step of the attack binary searches through this range, which is
+    obviously trivially small for this example, but usually much larger. The
+    last step is detailed below:
+
+    f_tmp = floor( 512 / (126-119) )       = 73
+    i     = floor( (73 * 119) / 3551 )     = 2
+    f_3   = ceil( (2 * 3551)/119 )         = 60
+            (f_3^e * c)^d mod N            = 278  ">=B"
+    m_min = ceil( (2 * 3551 + 256)/60 )    = 123
+
+    f_tmp = floor( 512 / (126-123) )       = 170
+    i     = floor( (170 * 123) / 3551 )    = 5
+    f_3   = ceil( (5 * 3551) / 123 )       = 145
+            (f_3^e * c)^d mod N            = 80   "<B"
+    m_max = floor( (5 * 3551 + 256)/145 )  = 124
+
+    f_tmp = floor( 512 / (124-123) )       = 512
+    i     = floor( (512 * 123) / 3551 )    = 17
+    f_3   = ceil( (17 * 3551)/123 )        = 491
+            (f_3^e * c)^d mod N            = 26   "<B"
+    m_max = floor( (17 * 3551 + 256)/491 ) = 123
+
+    Now we have
+    m_min = m_max = 123
+
+    And can verify that 123 == (123^5)^1373 mod 3551
+
+    Et voila! We have worked out our message!
+
 
 ================================================================================
 
@@ -11,7 +99,15 @@ Q.2 To prevent the attack, the vendor suggests altering the software: the
     produced.  Explain whether (and why, or why not) this change alone is
     sufficient.
 
-A.2 TODO
+A.2 For this attack, removing the distinguishable error messages would certainly
+    aid to preventing the attack. This removes the obvious means for whether or
+    not the decrypted ciphertext is >=B or <B, based on whether it breaks the
+    OAEP decryption process. However, as the Manger paper only specifies an
+    oracle that gives ">=B" or "<B" and no actual way to determine this, it is
+    up to the attacker on how they manage to find this information. Error
+    messages are just one means to finding this, and thus I cannot say for
+    certain that it would prevent this attack, as there may be another side
+    channel attack methods available that revel this information.
 
 ================================================================================
 
@@ -28,4 +124,17 @@ Q.8 Imagine you are a security consultant, employed by the device vendor.
     prevent some side-channel attacks on RSA.  Explain whether these
     techniques would prevent this attack, and why.
 
-A.8 TODO
+A.8 This attack is not affected by RSA blinding. Blinding is designed to help
+    mitigate other types of attack that may require repeated use of the oracle.
+    As messages/exponents are randomised, the encryption process is always
+    different, meaning that if a side channel attack relies on repetition and
+    accurate results with the same parameters.
+
+    However, in the case of the attack we implemented for this coursework, it is
+    not affected by message blinding. Our attack relies on information given by
+    the attack target, and does not rely on looking at the decryption process.
+    This means that randomising the RSA process has no affect to this attack.
+
+    So to conclude, yes message blinding can prevent some attacks, but not all.
+    It would be better to think of blinding as tightening the restrictions on a
+    potential attacker.
