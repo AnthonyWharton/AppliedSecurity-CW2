@@ -4,6 +4,7 @@ Python-2.7.5/
 *.conf
 *.D
 *.R
+*.zip
 
 ################################################################################
 # Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm, CLion, 
