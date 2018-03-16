@@ -3,7 +3,38 @@ Q.1 The vendor of the attack target is concerned that news of this attack
     necessary (in software or hardware) to prevent the attack.  Explain the
     options they have, and which one you would recommend.
 
-A.1 TODO
+A.1 Ultimately this attack feeds off of leaked information, specifically that of
+    the reduction in the RSA square and multiply step.  Thus to prevent this
+    target from being attacked, the implementation would have to not leak any
+    information regarding the computation.
+
+    The attack we implemented exploits the time taken to compute an iteration of
+    square and multiply dependent on the key bit/whether or not the intermediate
+    value was reduced.  Thus to protect from my attack implementation the
+    computation done by the target would have to be done in constant (or near
+    constant) time.  This could be achieved through either software or hardware
+    approaches.
+
+    A software approach could involve many different tricks.  In the case of
+    RSA in this target, a simple trick to throw off the adversary would be to
+    add some form of random computation in the computation step.  This would
+    cause even the same computation to take random time, making the timing data
+    unusable.  An example of this would be exponent blinding, which adds a
+    random term to the exponent that is cancelled out in the encryption process.
+    If the target were to use a different cryptographic procedure, trying to
+    randomise the order of computation would be a good move as well, however
+    this is not feasible/possible with RSA.  The drawback with implementing
+    constant-time implementations is that they incur some overhead in time (and
+    possibly memory) requirements.
+
+    A hardware approach could involve a few different approaches, the simplest
+    of which being the us of an integrated circuit/processor that performs the
+    operation's for a square and multiply in this case, or whatever the required
+    operation in the cryptographic scheme may be, in constant time.  The
+    software implementation would of course need to utilise any specific
+    instructions (if any) in order to take advantage of this, but the resulting
+    implementation would then be in theory not leak any information regarding
+    whether or not a reduction occurred.
 
 ================================================================================
 
@@ -11,7 +42,13 @@ Q.2 The vendor of the attack target is concerned that a similar attack may
     also apply to their implementation of ElGamal encryption.  Explain the
     potential for such an attack, and how it differs wrt.  the case of RSA.
 
-A.2 TODO
+A.2 ElGamal decryption uses some of the same mathematical procedures of RSA.
+    Although the encryption process uses some randomly chosen information, this
+    only acts as a message blinding technique.  On the other hand, the
+    decryption process only makes use of the secret key, x, and the two values
+    in the ciphertext pairs.  If the implementation uses the same square and
+    multiply technique as used by the RSA implementation, it would thus be
+    susceptible to the same attack.
 
 ================================================================================
 

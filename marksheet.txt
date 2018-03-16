@@ -16,8 +16,8 @@
 So that we can calibrate and improve the assignment in the future, give us
 a rough idea how long (in hours) you spent on it *in total*:
 
-effort : stage 1 -> 16 hours
-effort : stage 2 -> 22 hours
+effort : stage 1 -> 20 hours
+effort : stage 2 -> 25 hours
 effort : stage 3 -> [...] hours
 effort : stage 4 -> [...] hours
 
@@ -58,7 +58,7 @@ generality, realism, or style of a solution.
               challenge material (i.e., plaintext  m^{*}) :
               6A2B052ADCCDD3A2DE7D1AB268F2EC5018B257A04C8ED56C896DA9
 
-[?] Stage 2 : an attack based on execution time
+[X] Stage 2 : an attack based on execution time
               - correct challenge material                           ( 40%)
               - solution quality wrt. efficiency, robustness etc.    ( 30%)
               - analysis questions                                   ( 30%)
@@ -101,8 +101,7 @@ Stage 2:
         Tested on a lab machine, I get anywhere from around 15 seconds with no
         errors being picked up, to up to 45-60 seconds in unlucky cases with 15+
         errors. (With given test files.)
-    Error Checking Strategy:
-        TODO
+
 
 -------------------------------------------------------------------------------
 

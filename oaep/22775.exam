@@ -115,7 +115,17 @@ Q.3 Ignoring the use of countermeasures, carefully detail any situations
     where your implementation of this attack could fail; given more time,
     what could you do to resolve this?
 
-A.3 TODO
+A.3 The attack that I implemented assumed that the B value chosen statisfies
+    2B < N.  If this is not the case (i.e. when N < 2B), when the oracle returns
+    "<B" to the the first selection of f = 2, we instead learn that
+    f * m is in [0, B] or [N, 2B].  Although this is a reduction reduces the
+    range of possible values, it does complicate the implementation as we now
+    have to contend with two ranges instead of one.
+
+    To resolve this, the implementation would need to take this into account,
+    which would likely result in some fundamental changes to the algorithm.
+    I would likely try two branches of processing, one for assuming that f * m
+    is in [0, B], and one for if it is in the range [B, 2B].
 
 ================================================================================
 
