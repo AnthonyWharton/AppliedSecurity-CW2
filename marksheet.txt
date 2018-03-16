@@ -39,6 +39,11 @@ Stage 1:
    Annual International Cryptology Conference (pp. 230-238). Springer, Berlin,
    Heidelberg.
 
+Stage 2:
+ - Dhem, Jean-Francois, et al. "A practical implementation of the timing
+   attack." International Conference on Smart Card Research and Advanced
+   Applications. Springer, Berlin, Heidelberg, 1998.
+
 -------------------------------------------------------------------------------
 
 4. Marking
@@ -63,7 +68,7 @@ generality, realism, or style of a solution.
               - solution quality wrt. efficiency, robustness etc.    ( 30%)
               - analysis questions                                   ( 30%)
 
-              challenge material (i.e., exponent   d^{*}) : [...]
+              challenge material (i.e., exponent   d^{*}) : 1660947EF60BBF7F
 
 [?] Stage 3 : an attack based on an injected fault
               - correct challenge material                           ( 40%)
@@ -94,13 +99,37 @@ Stage 1:
     Expected Run Time:
         Around 5 seconds on lab machine with given test files.
     Notes:
-        Nothing extraordinary on top of the paper, all documented in-file.
+        Nothing extraordinary on top of the paper/RFC docs, all documented
+        in-file.
 
 Stage 2:
     Expected Run Time:
         Tested on a lab machine, I get anywhere from around 15 seconds with no
         errors being picked up, to up to 45-60 seconds in unlucky cases with 15+
         errors. (With given test files.)
+    Notes:
+        Error checking was done by comparing the F1-F2 (diff1) and F3-F4 (diff2)
+        differences, along with the inequality in the paper. This was by far the
+        least effective part of the code, with occasional runs ending up in a
+        state of looping errors. In order to combat this, I looked at adapting
+        the roll-back code to take this into account.
+
+        I kept an list of positions in the key, and the amount of times we have
+        error'd there. This was stored in a recursive doubling approach, as if
+        an error occurred at around the same area more than once, it was noted
+        that often the error occurred earlier and rolling back further would be
+        beneficial.
+
+        On an error, I generated some more samples, looked at the location of
+        the error in this array (as well as the bits around it as a sort of
+        locality-check) and then rolled back that amount. I used some light
+        dynamic programming between rounds, storing the values from the internal
+        oracles and using them for the next iteration, however when rolling back
+        I regenerated the values. Although it would not be out of reasonable
+        bounds to store all previous iterations' computed values, I decided that
+        the process of additionally regenerating the precomputed values when
+        samples were added was beyond required scope, and would provide little
+        additional benefit.
 
 
 -------------------------------------------------------------------------------

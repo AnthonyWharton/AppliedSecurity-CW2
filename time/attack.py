@@ -1,5 +1,11 @@
+#!/bin/python2.7
 import sys, subprocess, random, time
 from montgomery import *
+
+# Reference 1:
+# Dhem, Jean-Francois, et al. "A `practical implementation of the timing attack."
+# International Conference on Sma`rt Card Research and Advanced Applications.
+# Springer, Berlin, Heidelberg, 1998.
 
 ################################################################################
 # Helper function to truncate long strings (s) into a length (ln)
