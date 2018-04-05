@@ -40,6 +40,31 @@ def interact(target, ciphertext):
 	return dt, m
 
 ################################################################################
+# Generates random 8 bit ciphertexts
+# Arguments:
+#   sample_size - integer: Number of ciphertexts to generate
+# Return:
+#   [integer]: A list of randomly generated sample ciphertexts in integer form
+def generate_ciphertexts(sample_size):
+	rng = random.SystemRandom()
+	samples = []
+	for i in range(sample_size):
+		c = rng.getrandbits(8)
+		samples.append(c)
+	return samples
+
+################################################################################
+# Generates multiplication table under gf 2^8 (Rijndael's Finite Field)
+# Return:
+#   [[integer]]: A 2 dimensional lookup table for 8 bit gf 2^8 multiplication
+def generate_mul_table():
+	table = [[]]
+	for i in range(0b11111111):
+		for j in range(0b11111111):
+			table[i][j] = gf28_mul(i, j)
+	return table
+
+################################################################################
 # Performs the attack
 # Arguments:
 #   target      - subprocess: Target to interact with
