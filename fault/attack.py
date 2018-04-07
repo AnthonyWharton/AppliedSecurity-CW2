@@ -61,24 +61,24 @@ m = [[gf28_mul(i,j) for i in range(256)] for j in range(256)]
 ################################################################################
 # Gets the n'th byte from the 128 bit binary number. 0 indexes
 # Arguments:
-#   bin - integer: 128 bit binary digit to get the byte from
-#   n   - integer: Byte to retrieve (0 indexed)
+#   b - integer: 128 bit binary digit to get the byte from
+#   n - integer: Byte to retrieve (0 indexed)
 # Return:
 #   integer: The requested byte
-def b(bin, n):
+def bl(bin, n):
 	return (bin & (0xff000000000000000000000000000000 >> (8*n))) >> (120 - 8*n)
 
 ################################################################################
-# Step 1 from the attack
+# Main calculation from Step 1 in the attack
 # Arguments:
 #   coeff    - [integer]:   List of the 4 lhs coefficients for the 4 equations
 #   blocks   - [integer]:   List of the block numbers these equations use
 #   sample_c - integer:     The correct sample
 #   sample_f - integer:     The faulty sample
-#   p        - [[integer]]: The results array
+#   k        - [[integer]]: The results array
 # Return:
 #   Nothing - Results are added to `p`
-def step1(coeff, blocks, sample_c, sample_f, p):
+def step1_calc(coeff, blocks, sample_c, sample_f, k):
 	global m
 	if not (len(coeff) == 4) and not (len(blocks) == 4):
 		raise(AssertionError, "Can only provide 4 coefficients/block ids")
@@ -94,8 +94,8 @@ def step1(coeff, blocks, sample_c, sample_f, p):
 			options = []
 			for key in range(256):
 				lhs = m[coeff[step]][d]
-				rhs = SBox.i[b(sample_c, blocks[step]) ^ key] \
-				    ^ SBox.i[b(sample_f, blocks[step]) ^ key]
+				rhs = SBox.i[bl(sample_c, blocks[step]) ^ key] \
+				    ^ SBox.i[bl(sample_f, blocks[step]) ^ key]
 				if lhs == rhs:
 					options.append(key)
 			# Check if we had any working keys, store them in our accumulator
@@ -110,11 +110,36 @@ def step1(coeff, blocks, sample_c, sample_f, p):
 				for b in o_acc[1]:
 					for c in o_acc[2]:
 						for d in o_acc[3]:
-							p[blocks[0]].append(a)
-							p[blocks[1]].append(b)
-							p[blocks[2]].append(c)
-							p[blocks[3]].append(d)
+							k[blocks[0]].append(a)
+							k[blocks[1]].append(b)
+							k[blocks[2]].append(c)
+							k[blocks[3]].append(d)
 
+################################################################################
+# Step 1 from the attack
+# Arguments:
+#   sample_c - integer: The correct sample
+#   sample_f - integer: The faulty sample
+# Return:
+#   [[integer]]: 16 lists of possible keys, given the samples
+def step1(sample_c, sample_f):
+	k = [[] for i in range(16)]
+	step1_calc([2, 1, 1, 3], [ 0, 13, 10,  7], sample_c, sample_f, k)
+	step1_calc([3, 2, 1, 1], [ 4,  1, 14, 11], sample_c, sample_f, k)
+	step1_calc([1, 3, 2, 1], [ 8,  5,  2, 15], sample_c, sample_f, k)
+	step1_calc([1, 1, 3, 2], [12,  9,  6,  3], sample_c, sample_f, k)
+	return k
+
+################################################################################
+# Step 2 from the attack
+# Arguments:
+#   sample_c - integer:     The correct sample
+#   sample_f - integer:     The faulty sample
+#   k        - [[integer]]: The possible key list from the previous step
+# Return:
+#   TODO Write this bit
+def step2(sample_c, sample_f, k):
+	pass
 
 ################################################################################
 # Performs the attack
@@ -127,13 +152,9 @@ def attack(target):
 
 	sample_c = 309576198173487898485272507802272752224
 	sample_f = 213524607176099836202173306380891822739
-	p        = [[] for i in range(16)]
 
 	# Perform Step One on each of the 4 sets of equations
-	step1([2, 1, 1, 3], [ 0, 13, 10,  7], sample_c, sample_f, p)
-	step1([3, 2, 1, 1], [ 4,  1, 14, 11], sample_c, sample_f, p)
-	step1([1, 3, 2, 1], [ 8,  5,  2, 15], sample_c, sample_f, p)
-	step1([1, 1, 3, 2], [12,  9,  6,  3], sample_c, sample_f, p)
+	k = step1(sample_c, sample_f)
 
 	# Compute the formatting string for challenges
 	global _challenge_format
