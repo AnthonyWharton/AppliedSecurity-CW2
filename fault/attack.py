@@ -22,22 +22,23 @@ def centre_trunc_string(ln, s):
 		return s[:(ln/2)-2] + " ... "  + s[-(ln/2)+2:] if len(s) > ln else s
 
 ################################################################################
-# Feeds a given label and ciphertext to the target, and returns the status code
+# Feeds a given fault_spec and plaintext to the target, and returns the
+# ciphertext = aes_encrypt(plaintext)
 # Arguments:
 #   target     - subprocess: Target to interact with
-#   label      - string:     Challenge RSAES-OAEP Label
-#   ciphertext - string:     Challenge RSAES-OAP Ciphertext
+#   fault_spec - string:     Specification for the fault
+#   plaintext  - string:     Challenge RSAES-OAP Ciphertext
 # Return:
-#   integer: The response status code from the target
+#   integer: The encrypted ciphertext
 _interaction_count = 0 # Global challenge/interaction count
-def interact(target, ciphertext):
-	target.stdin.write(ciphertext + "\n")
+def interact(target, fault_spec, plaintext):
+	target.stdin.write(fault_spec + "\n")
+	target.stdin.write(plaintext + "\n")
 	target.stdin.flush()
 	global _interaction_count
 	_interaction_count = _interaction_count + 1
-	dt = int(target.stdout.readline().strip(), 10)
-	m  = int(target.stdout.readline().strip(), 16)
-	return dt, m
+	c = int(target.stdout.readline().strip(), 16)
+	return c
 
 ################################################################################
 # Generates random 8 bit ciphertexts
@@ -54,15 +55,66 @@ def generate_ciphertexts(sample_size):
 	return samples
 
 ################################################################################
-# Generates multiplication table under gf 2^8 (Rijndael's Finite Field)
+# Generates global multiplication table under gf 2^8 (Rijndael's Finite Field)
+m = [[gf28_mul(i,j) for i in range(256)] for j in range(256)]
+
+################################################################################
+# Gets the n'th byte from the 128 bit binary number. 0 indexes
+# Arguments:
+#   bin - integer: 128 bit binary digit to get the byte from
+#   n   - integer: Byte to retrieve (0 indexed)
 # Return:
-#   [[integer]]: A 2 dimensional lookup table for 8 bit gf 2^8 multiplication
-def generate_mul_table():
-	table = [[]]
-	for i in range(0b11111111):
-		for j in range(0b11111111):
-			table[i][j] = gf28_mul(i, j)
-	return table
+#   integer: The requested byte
+def b(bin, n):
+	return (bin & (0xff000000000000000000000000000000 >> (8*n))) >> (120 - 8*n)
+
+################################################################################
+# Step 1 from the attack
+# Arguments:
+#   coeff    - [integer]:   List of the 4 lhs coefficients for the 4 equations
+#   blocks   - [integer]:   List of the block numbers these equations use
+#   sample_c - integer:     The correct sample
+#   sample_f - integer:     The faulty sample
+#   p        - [[integer]]: The results array
+# Return:
+#   Nothing - Results are added to `p`
+def step1(coeff, blocks, sample_c, sample_f, p):
+	global m
+	if not (len(coeff) == 4) and not (len(blocks) == 4):
+		raise(AssertionError, "Can only provide 4 coefficients/block ids")
+	# if not len(samples_c) == len(samples_f):
+	# 	raise(AssertionError, "Samples arrays are not the same length")
+	# Checking for every possible value of delta
+	for d in range(1,256):
+		o_acc = []
+		successful = True
+		# Loop through the 4 'simultaneous' equations, find keys that work
+		# with our value of delta
+		for step in range(4):
+			options = []
+			for key in range(256):
+				lhs = m[coeff[step]][d]
+				rhs = SBox.i[b(sample_c, blocks[step]) ^ key] \
+				    ^ SBox.i[b(sample_f, blocks[step]) ^ key]
+				if lhs == rhs:
+					options.append(key)
+			# Check if we had any working keys, store them in our accumulator
+			if len(options) > 0:
+				o_acc.append(options)
+			else:
+				successful = False
+				break # This equation didn't work so this delta can be skipped
+		# If all 4 equations worked, keep track of those options
+		if successful:
+			for a in o_acc[0]:
+				for b in o_acc[1]:
+					for c in o_acc[2]:
+						for d in o_acc[3]:
+							p[blocks[0]].append(a)
+							p[blocks[1]].append(b)
+							p[blocks[2]].append(c)
+							p[blocks[3]].append(d)
+
 
 ################################################################################
 # Performs the attack
@@ -73,11 +125,21 @@ def generate_mul_table():
 #           hexadecimal representation
 def attack(target):
 
+	sample_c = 309576198173487898485272507802272752224
+	sample_f = 213524607176099836202173306380891822739
+	p        = [[] for i in range(16)]
+
+	# Perform Step One on each of the 4 sets of equations
+	step1([2, 1, 1, 3], [ 0, 13, 10,  7], sample_c, sample_f, p)
+	step1([3, 2, 1, 1], [ 4,  1, 14, 11], sample_c, sample_f, p)
+	step1([1, 3, 2, 1], [ 8,  5,  2, 15], sample_c, sample_f, p)
+	step1([1, 1, 3, 2], [12,  9,  6,  3], sample_c, sample_f, p)
+
 	# Compute the formatting string for challenges
 	global _challenge_format
 	_challenge_format = "{0:X}"
 
-	return "{0:X}".format(int(01234567, 2))
+	return "{0:X}".format(int("111", 2))
 
 ################################################################################
 # Main
@@ -92,7 +154,6 @@ def main():
 	# Get the file locations for the "e-commerce server" (target) and public
 	# configuration parameters
 	server_path = sys.argv[1]
-	config_path = sys.argv[2]
 
 	# Produce a sub-process representing the attack target.
 	target = subprocess.Popen(args=[server_path],
@@ -101,7 +162,7 @@ def main():
 
 	# Execute the attack
 	start = time.time()
-	m = attack(target, config_path)
+	m = attack(target)
 	end = time.time()
 	print "Time Taken: " + str(end - start) + " seconds\n"
 
