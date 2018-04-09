@@ -3,23 +3,10 @@ import sys, subprocess, random, time
 from aes_misc import *
 
 # Reference 1:
-# Dhem, Jean-Francois, et al. "A `practical implementation of the timing attack."
-# International Conference on Smart Card Research and Advanced Applications.
-# Springer, Berlin, Heidelberg, 1998.
-
-################################################################################
-# Helper function to truncate long strings (s) into a length (ln)
-# Arguments:
-#   ln - integer: The length of the string to produce
-#   s  - string:  The string to truncate
-# Returns:
-#   string: A string of size min(ln, len(s)), with the center truncated out and
-#   replaced with " ... " or " .... "
-def centre_trunc_string(ln, s):
-	if ln % 2 == 0:
-		return s[:(ln/2)-3] + " .... " + s[-(ln/2)+2:] if len(s) > ln else s
-	else:
-		return s[:(ln/2)-2] + " ... "  + s[-(ln/2)+2:] if len(s) > ln else s
+# Tunstall, M., Mukhopadhyay, D. and Ali, S., 2011, June. Differential fault
+# analysis of the advanced encryption standard using a single fault. In IFIP
+# International Workshop on Information Security Theory and Practices
+# (pp. 224-233). Springer, Berlin, Heidelberg.
 
 ################################################################################
 # Feeds a given fault_spec and plaintext to the target, and returns the
@@ -41,16 +28,16 @@ def interact(target, fault_spec, plaintext):
 	return c
 
 ################################################################################
-# Generates random 8 bit ciphertexts
+# Generates random 128 bit plaintexts
 # Arguments:
 #   sample_size - integer: Number of ciphertexts to generate
 # Return:
-#   [integer]: A list of randomly generated sample ciphertexts in integer form
-def generate_ciphertexts(sample_size):
+#   [integer]: A list of randomly generated sample plaintexts in integer form
+def generate_plaintexts(sample_size):
 	rng = random.SystemRandom()
 	samples = []
 	for i in range(sample_size):
-		c = rng.getrandbits(8)
+		c = rng.getrandbits(128)
 		samples.append(c)
 	return samples
 
@@ -69,23 +56,33 @@ def bl(bin, n):
 	return (bin & (0xff000000000000000000000000000000 >> (8*n))) >> (120 - 8*n)
 
 ################################################################################
-# Main calculation from Step 1 in the attack
+# Finds the intersection of two lists
+# Arguments:
+#   a - [type] List of any object that works with the in operator
+#   b - [type] List of any object that works with the in operator
+# Return:
+#   [type]: list containing items that are common to a and b
+def intersect(a,b):
+	return [i for i in a if i in b]
+
+################################################################################
+# Main calculation from Step 1 in the attack in Reference 1
 # Arguments:
 #   coeff    - [integer]:   List of the 4 lhs coefficients for the 4 equations
 #   blocks   - [integer]:   List of the block numbers these equations use
 #   sample_c - integer:     The correct sample
 #   sample_f - integer:     The faulty sample
-#   k        - [[integer]]: The results array
 # Return:
-#   Nothing - Results are added to `p`
-def step1_calc(coeff, blocks, sample_c, sample_f, k):
+#   [[integer]]: List of combinations of possible values that satisfy the given
+#                configuration of equation
+def step1_calc(coeff, blocks, sample_c, sample_f):
 	global m
 	if not (len(coeff) == 4) and not (len(blocks) == 4):
 		raise(AssertionError, "Can only provide 4 coefficients/block ids")
-	# if not len(samples_c) == len(samples_f):
-	# 	raise(AssertionError, "Samples arrays are not the same length")
+
+	output_grouped = []
 	# Checking for every possible value of delta
-	for d in range(1,256):
+	for d in range(256):
 		o_acc = []
 		successful = True
 		# Loop through the 4 'simultaneous' equations, find keys that work
@@ -104,42 +101,243 @@ def step1_calc(coeff, blocks, sample_c, sample_f, k):
 			else:
 				successful = False
 				break # This equation didn't work so this delta can be skipped
-		# If all 4 equations worked, keep track of those options
+
+		# If all 4 equations worked, create all permutations for output
 		if successful:
 			for a in o_acc[0]:
 				for b in o_acc[1]:
 					for c in o_acc[2]:
 						for d in o_acc[3]:
-							k[blocks[0]].append(a)
-							k[blocks[1]].append(b)
-							k[blocks[2]].append(c)
-							k[blocks[3]].append(d)
+							output_grouped.append([a,b,c,d])
+	return output_grouped
 
 ################################################################################
-# Step 1 from the attack
+# Step 1 from the attack in Reference 1
 # Arguments:
-#   sample_c - integer: The correct sample
-#   sample_f - integer: The faulty sample
+#   samples_c    - [integer]: List of correct samples
+#   samples_f    - [integer]: List of faulty samples
+#   coeff_config - [integer]: List of the 4 lhs coefficients for the 4 equations
+#   block_config - [integer]: List of the block numbers these equations use
 # Return:
 #   [[integer]]: 16 lists of possible keys, given the samples
-def step1(sample_c, sample_f):
-	k = [[] for i in range(16)]
-	step1_calc([2, 1, 1, 3], [ 0, 13, 10,  7], sample_c, sample_f, k)
-	step1_calc([3, 2, 1, 1], [ 4,  1, 14, 11], sample_c, sample_f, k)
-	step1_calc([1, 3, 2, 1], [ 8,  5,  2, 15], sample_c, sample_f, k)
-	step1_calc([1, 1, 3, 2], [12,  9,  6,  3], sample_c, sample_f, k)
+def step1(samples_c, samples_f, coeff_config, block_config):
+	if not len(samples_c) == len(samples_f):
+		raise(AssertionError, "Samples arrays are not the same length")
+
+	# Storage for key combinations that are common, per set of equations, over
+	# multiple samples
+	os = [[],[],[],[]]
+
+	# Loop through samples, run each equation and get the key possibilities
+	step1_init_printout()
+	for s in range(len(samples_c)):
+		for eq in range(4):
+			o = step1_calc(coeff_config[eq],
+			               block_config[eq],
+			               samples_c[s],
+			               samples_f[s])
+			print "msg:"         + str(s)      + \
+			      " eqs:"  + str(eq)     + \
+			      " pos:" + str(len(o)) + \
+			      " val:"        + str(o)
+
+			# Keep track of the intersection of options between samples
+			# This vastly narrows down the number of equations we must deal with
+			if s == 0:
+				os[eq] = o # First Time; store all options
+			else:
+				os[eq] = intersect(os[eq], o) # Else; only store intersection
+
+	# Generate a new k from the intersection
+	k_ = [[] for i in range(16)]
+	for eq in range(4):
+		for i in range(len(os[eq])):
+			k_[block_config[eq][0]].append(os[eq][i][0])
+			k_[block_config[eq][1]].append(os[eq][i][1])
+			k_[block_config[eq][2]].append(os[eq][i][2])
+			k_[block_config[eq][3]].append(os[eq][i][3])
+		if len(os[eq]) == 0:
+			raise(RuntimeError, "No intersected results found for equation set"
+			                    + str(eq) + ".. Unable to continue")
+	return k_
+
+def step1_init_printout():
+	print "+-------------------------------------------------------------+"
+	print "| ==================    RUNNING STEP 1    =================== |"
+	print "+-------------------------------------------------------------+"
+	print "| ====================   PRINTOUT KEY   ===================== |"
+	print "| msg - Plaintext Message ID                                  |"
+	print "| eqs - Step 1 Equation Set ID                                |"
+	print "| pos - Number of possible key configurations                 |"
+	print "| val - The list of actual combinations for this equation set |"
+	print "+-------------------------------------------------------------+"
+
+################################################################################
+# Winds back the round key from n to n-1.
+# Arguments:
+#   k - [integer]: The 16 individual bytes of the round key
+#   n - integer:   The round number of the given key
+# Return:
+#   [integer]: A new k' that is the round key for the round before the given
+def _step2_rk_windback1(k, n):
+	k_ = [0] * 16
+	# First Column
+	k_[ 0] = k[ 0] ^ SBox.s[k[13] ^ k[ 9]] ^ AESConst.rcon[n]
+	k_[ 1] = k[ 1] ^ SBox.s[k[14] ^ k[10]]
+	k_[ 2] = k[ 2] ^ SBox.s[k[15] ^ k[11]]
+	k_[ 3] = k[ 3] ^ SBox.s[k[12] ^ k[ 8]]
+	# Second Column
+	k_[ 4] = k[ 4] ^ k[ 0]
+	k_[ 5] = k[ 5] ^ k[ 1]
+	k_[ 6] = k[ 6] ^ k[ 2]
+	k_[ 7] = k[ 7] ^ k[ 3]
+	# Third Column
+	k_[ 8] = k [8] ^ k[ 4]
+	k_[ 9] = k[ 9] ^ k[ 5]
+	k_[10] = k[10] ^ k[ 6]
+	k_[11] = k[11] ^ k[ 7]
+	# Fourth Column
+	k_[12] = k[12] ^ k[ 8]
+	k_[13] = k[13] ^ k[ 9]
+	k_[14] = k[14] ^ k[10]
+	k_[15] = k[15] ^ k[11]
+	return k_
+
+################################################################################
+# Winds back the round key from n to m.
+# Arguments:
+#   k - [integer]: The 16 individual bytes of the round key
+#   n - integer:   The round number of the given key
+#   m - integer:   The round number for the desired resulting key
+# Return:
+#   [integer]: A new k' that is the round key for the specified round
+def step2_rk_windback(k, n, m):
+	if n < m:
+		raise(AssertionError, "n must be greater than (or equal to) m")
+	for i in range(n,m,-1):
+		k = _step2_rk_windback1(k, n)
 	return k
 
 ################################################################################
-# Step 2 from the attack
+# Does the calculations and checks the equations specified in Step 2 of the
+# attack in Reference 1
 # Arguments:
-#   sample_c - integer:     The correct sample
-#   sample_f - integer:     The faulty sample
-#   k        - [[integer]]: The possible key list from the previous step
+#   k        - [integer]: The 16 individual bytes of the 10th round key
+#   k9       - [integer]: The 16 individual bytes of the 9th round key
+#   sample_c - integer:   A correct sample ciphertext
+#   sample_f - integer:   A faulty sample ciphertext
 # Return:
-#   TODO Write this bit
-def step2(sample_c, sample_f, k):
-	pass
+#   boolean: Whether or not the equations for Step 2 were satisfied or not
+def step2_check_equation(k, k9, sample_c, sample_f):
+	a   = SBox.i[ m[14][SBox.i[bl(sample_c,  0) ^ k[ 0]] ^ k9[ 0]]
+	            ^ m[11][SBox.i[bl(sample_c, 13) ^ k[13]] ^ k9[ 1]]
+	            ^ m[13][SBox.i[bl(sample_c, 10) ^ k[10]] ^ k9[ 2]]
+	            ^ m[ 9][SBox.i[bl(sample_c,  7) ^ k[ 7]] ^ k9[ 3]] ] \
+	    ^ SBox.i[ m[14][SBox.i[bl(sample_f,  0) ^ k[ 0]] ^ k9[ 0]]
+	            ^ m[11][SBox.i[bl(sample_f, 13) ^ k[13]] ^ k9[ 1]]
+	            ^ m[13][SBox.i[bl(sample_f, 10) ^ k[10]] ^ k9[ 2]]
+	            ^ m[ 9][SBox.i[bl(sample_f,  7) ^ k[ 7]] ^ k9[ 3]] ]
+	b   = SBox.i[ m[ 9][SBox.i[bl(sample_c, 12) ^ k[12]] ^ k9[12]]
+	            ^ m[14][SBox.i[bl(sample_c,  9) ^ k[ 9]] ^ k9[13]]
+	            ^ m[11][SBox.i[bl(sample_c,  6) ^ k[ 6]] ^ k9[14]]
+	            ^ m[13][SBox.i[bl(sample_c,  3) ^ k[ 3]] ^ k9[15]] ] \
+	    ^ SBox.i[ m[ 9][SBox.i[bl(sample_f, 12) ^ k[12]] ^ k9[12]]
+	            ^ m[14][SBox.i[bl(sample_f,  9) ^ k[ 9]] ^ k9[13]]
+	            ^ m[11][SBox.i[bl(sample_f,  6) ^ k[ 6]] ^ k9[14]]
+	            ^ m[13][SBox.i[bl(sample_f,  3) ^ k[ 3]] ^ k9[15]] ]
+	# Check 2*a == b (as 2^-1 === 141 under Rijndael's Galois Field)
+	if m[a][141] != b:
+		print "a and b not alike"
+		return False
+
+	c   = SBox.i[ m[13][SBox.i[bl(sample_c,  8) ^ k[ 8]] ^ k9[ 8]]
+	            ^ m[ 9][SBox.i[bl(sample_c,  5) ^ k[ 5]] ^ k9[ 9]]
+	            ^ m[14][SBox.i[bl(sample_c,  2) ^ k[ 2]] ^ k9[10]]
+	            ^ m[11][SBox.i[bl(sample_c, 15) ^ k[15]] ^ k9[11]] ] \
+	    ^ SBox.i[ m[13][SBox.i[bl(sample_f,  8) ^ k[ 8]] ^ k9[ 8]]
+	            ^ m[ 9][SBox.i[bl(sample_f,  5) ^ k[ 5]] ^ k9[ 9]]
+	            ^ m[14][SBox.i[bl(sample_f,  2) ^ k[ 2]] ^ k9[10]]
+	            ^ m[11][SBox.i[bl(sample_f, 15) ^ k[15]] ^ k9[11]] ]
+	# Check if b == c
+	if b != c:
+		print "b and c not alike"
+		return False
+
+	d   = SBox.i[ m[11][SBox.i[bl(sample_c,  4) ^ k[ 4]] ^ k9[ 4]]
+	            ^ m[13][SBox.i[bl(sample_c,  1) ^ k[ 1]] ^ k9[ 5]]
+	            ^ m[ 9][SBox.i[bl(sample_c, 14) ^ k[14]] ^ k9[ 6]]
+	            ^ m[14][SBox.i[bl(sample_c, 11) ^ k[11]] ^ k9[ 7]]] \
+	    ^ SBox.i[ m[11][SBox.i[bl(sample_f,  4) ^ k[ 4]] ^ k9[ 4]]
+	            ^ m[13][SBox.i[bl(sample_f,  1) ^ k[ 1]] ^ k9[ 5]]
+	            ^ m[ 9][SBox.i[bl(sample_f, 14) ^ k[14]] ^ k9[ 6]]
+	            ^ m[14][SBox.i[bl(sample_f, 11) ^ k[11]] ^ k9[ 7]]]
+
+	# Return the check if c == 3*c (as 3^-1 === 246 under this field)
+	return m[d][246] == c
+
+################################################################################
+# Step 2 from the attack in Reference 1
+# Arguments:
+#   sample_p     - integer      A sample plaintext
+#   sample_c     - integer:     The correct sample ciphertext of the plaintext
+#   sample_f     - integer:     The faulty sample ciphertext of the plaintext
+#   block_config - [integer]:   List of the block numbers these equations use
+#   keys         - [[integer]]: The possible key list from the previous step
+# Return:
+#   integer: The 128 bit recovered AES Key
+def step2(sample_p, sample_c, sample_f, block_config, keys):
+	k = [0 for i in range(16)]
+
+	step2_init_printout()
+	print "Key Possibilities for Equation Set 0: " + str(len(keys[0]))
+	print "Key Possibilities for Equation Set 1: " + str(len(keys[1]))
+	print "Key Possibilities for Equation Set 2: " + str(len(keys[2]))
+	print "Key Possibilities for Equation Set 3: " + str(len(keys[3]))
+	# Byte Set One
+	for a in range(len(keys[0])):
+		# Load our desired keys
+		k[block_config[0][0]] = keys[block_config[0][0]][a]
+		k[block_config[0][1]] = keys[block_config[0][1]][a]
+		k[block_config[0][2]] = keys[block_config[0][2]][a]
+		k[block_config[0][3]] = keys[block_config[0][3]][a]
+
+		# Byte Set Two
+		for b in range(len(keys[1])):
+			# Load our desired keys
+			k[block_config[1][0]] = keys[block_config[1][0]][b]
+			k[block_config[1][1]] = keys[block_config[1][1]][b]
+			k[block_config[1][2]] = keys[block_config[1][2]][b]
+			k[block_config[1][3]] = keys[block_config[1][3]][b]
+
+			# Byte Set Three
+			for c in range(len(keys[2])):
+				# Load our desired keys
+				k[block_config[2][0]] = keys[block_config[2][0]][c]
+				k[block_config[2][1]] = keys[block_config[2][1]][c]
+				k[block_config[2][2]] = keys[block_config[2][2]][c]
+				k[block_config[2][3]] = keys[block_config[2][3]][c]
+
+				# Byte Set Four
+				for d in range(len(keys[3])):
+					# Load our desired keys
+					k[block_config[3][0]] = keys[block_config[3][0]][d]
+					k[block_config[3][1]] = keys[block_config[3][1]][d]
+					k[block_config[3][2]] = keys[block_config[3][2]][d]
+					k[block_config[3][3]] = keys[block_config[3][3]][d]
+
+					# Set up our keys from round 9
+					k9 = step2_rk_windback(k, 10, 9)
+
+					# Check equations
+					if step2_check_equation(k, k9, sample_c, sample_f):
+						print "Yipee it worked!"
+						# TODO Implement AES Checking
+	return "1234567890"
+
+def step2_init_printout():
+	print "+-------------------------------------------------------------+"
+	print "| ==================    RUNNING STEP 2    =================== |"
+	print "+-------------------------------------------------------------+"
 
 ################################################################################
 # Performs the attack
@@ -150,17 +348,42 @@ def step2(sample_c, sample_f, k):
 #           hexadecimal representation
 def attack(target):
 
-	sample_c = 309576198173487898485272507802272752224
-	sample_f = 213524607176099836202173306380891822739
-
-	# Perform Step One on each of the 4 sets of equations
-	k = step1(sample_c, sample_f)
+	sample_size = 2
 
 	# Compute the formatting string for challenges
-	global _challenge_format
-	_challenge_format = "{0:X}"
+	global _challenge_fmt
+	_challenge_fmt = "{0:X}"
 
-	return "{0:X}".format(int("111", 2))
+	# Generate the plaintexts
+	samples_p = generate_plaintexts(sample_size)
+	samples_c = []
+	samples_f = []
+
+	# Encrypt the plaintexts with and without errors
+	nf = FaultConfig(True)
+	f  = FaultConfig(False, 8, AESRoundFunction.SubBytes, FaultLoc.Before, 0, 0)
+	for i in range(sample_size):
+		s = interact(target, nf.export(), _challenge_fmt.format(samples_p[i]))
+		samples_c.append(s)
+		s = interact(target, f.export(),  _challenge_fmt.format(samples_p[i]))
+		samples_f.append(s)
+
+	# Configure the LHS coefficients, and which AES key blocks should be used
+	# with which set of equations
+	coeff_config = [[ 2,  1,  1,  3],
+	                [ 1,  1,  3,  2],
+	                [ 1,  3,  2,  1],
+	                [ 3,  2,  1,  1]]
+	block_config = [[ 0, 13, 10,  7],
+	                [ 4,  1, 14, 11],
+	                [ 8,  5,  2, 15],
+	                [12,  9,  6,  3]]
+
+	# Perform Step One on each of the 4 sets of equations
+	k   = step1(samples_c, samples_f, coeff_config, block_config)
+	key = step2(samples_p[0], samples_c[0], samples_f[0], block_config, k)
+
+	return "{0:X}".format(int(key))
 
 ################################################################################
 # Main

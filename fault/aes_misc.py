@@ -34,32 +34,41 @@ class AESRoundFunction:
 		             AESRoundFunction.ShiftRows,   AESRoundFunction.MixColumns]
 
 ################################################################################
-class FaultLocation:
+class FaultLoc:
 	Before = 0
 	After = 1
 
 	@staticmethod
 	def valid(p):
-		return p in [FaultLocation.Before, FaultLocation.After]
+		return p in [FaultLoc.Before, FaultLoc.After]
 
 ################################################################################
 class FaultConfig:
-	def __init__(self, r, f, p, i, j):
+	def __init__(self, no_fault,
+	             r=8,
+	             f=AESRoundFunction.SubBytes,
+	             p=FaultLoc.Before,
+	             i=0,
+	             j=0):
 		if (r not in range(11)):
 			raise (ValueError, "The round, r, was invalid.")
 		if (not AESRoundFunction.valid(f)):
 			raise (ValueError, "The round function, f, was invalid.")
-		if (not FaultLocation.valid(p)):
+		if (not FaultLoc.valid(p)):
 			raise (ValueError, "The fault location, p, was invalid.")
 		if (i not in range(4) or j not in range(4)):
 			raise (ValueError, "The fault location, (i,j), was invalid.")
-		self.r = r
-		self.f = f
-		self.p = p
-		self.i = i
-		self.j = j
+		self.no_fault = no_fault
+		if not no_fault:
+			self.r = r
+			self.f = f
+			self.p = p
+			self.i = i
+			self.j = j
 
 	def export(self):
+		if self.no_fault:
+			return ""
 		return str(self.r) + "," + \
 		       str(self.f) + "," + \
 		       str(self.p) + "," + \
