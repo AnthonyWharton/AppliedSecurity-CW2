@@ -1,5 +1,6 @@
 #!/bin/python2.7
 import sys, subprocess, random, time
+from Crypto.Cipher import AES
 from aes_misc import *
 
 # Reference 1:
@@ -7,6 +8,20 @@ from aes_misc import *
 # analysis of the advanced encryption standard using a single fault. In IFIP
 # International Workshop on Information Security Theory and Practices
 # (pp. 224-233). Springer, Berlin, Heidelberg.
+
+################################################################################
+# Generates random 128 bit plaintexts
+# Arguments:
+#   sample_size - integer: Number of ciphertexts to generate
+# Return:
+#   [integer]: A list of randomly generated sample plaintexts in integer form
+def generate_plaintexts(sample_size):
+	rng = random.SystemRandom()
+	samples = []
+	for i in range(sample_size):
+		c = rng.getrandbits(128)
+		samples.append(c)
+	return samples
 
 ################################################################################
 # Feeds a given fault_spec and plaintext to the target, and returns the
@@ -28,25 +43,11 @@ def interact(target, fault_spec, plaintext):
 	return c
 
 ################################################################################
-# Generates random 128 bit plaintexts
-# Arguments:
-#   sample_size - integer: Number of ciphertexts to generate
-# Return:
-#   [integer]: A list of randomly generated sample plaintexts in integer form
-def generate_plaintexts(sample_size):
-	rng = random.SystemRandom()
-	samples = []
-	for i in range(sample_size):
-		c = rng.getrandbits(128)
-		samples.append(c)
-	return samples
-
-################################################################################
 # Generates global multiplication table under gf 2^8 (Rijndael's Finite Field)
 m = [[gf28_mul(i,j) for i in range(256)] for j in range(256)]
 
 ################################################################################
-# Gets the n'th byte from the 128 bit binary number. 0 indexes
+# Gets the n'th byte from the 128 bit binary number. (0 indexed)
 # Arguments:
 #   b - integer: 128 bit binary digit to get the byte from
 #   n - integer: Byte to retrieve (0 indexed)
@@ -64,6 +65,19 @@ def bl(bin, n):
 #   [type]: list containing items that are common to a and b
 def intersect(a,b):
 	return [i for i in a if i in b]
+
+################################################################################
+# Initial printout for Step 1
+def step1_init_printout():
+	print "+-------------------------------------------------------------+"
+	print "| ==================    RUNNING STEP 1    =================== |"
+	print "+-------------------------------------------------------------+"
+	print "| ====================   PRINTOUT KEY   ===================== |"
+	print "| msg - Plaintext Message ID                                  |"
+	print "| eqs - Step 1 Equation Set ID                                |"
+	print "| pos - Number of possible key configurations                 |"
+	print "| val - The list of actual combinations for this equation set |"
+	print "+-------------------------------------------------------------+"
 
 ################################################################################
 # Main calculation from Step 1 in the attack in Reference 1
@@ -161,62 +175,13 @@ def step1(samples_c, samples_f, coeff_config, block_config):
 			                    + str(eq) + ".. Unable to continue")
 	return k_
 
-def step1_init_printout():
-	print "+-------------------------------------------------------------+"
-	print "| ==================    RUNNING STEP 1    =================== |"
-	print "+-------------------------------------------------------------+"
-	print "| ====================   PRINTOUT KEY   ===================== |"
-	print "| msg - Plaintext Message ID                                  |"
-	print "| eqs - Step 1 Equation Set ID                                |"
-	print "| pos - Number of possible key configurations                 |"
-	print "| val - The list of actual combinations for this equation set |"
-	print "+-------------------------------------------------------------+"
-
 ################################################################################
-# Winds back the round key from n to n-1.
-# Arguments:
-#   k - [integer]: The 16 individual bytes of the round key
-#   n - integer:   The round number of the given key
-# Return:
-#   [integer]: A new k' that is the round key for the round before the given
-def _step2_rk_windback1(k, n):
-	k_ = [0] * 16
-	# First Column
-	k_[ 0] = k[ 0] ^ SBox.s[k[13] ^ k[ 9]] ^ AESConst.rcon[n]
-	k_[ 1] = k[ 1] ^ SBox.s[k[14] ^ k[10]]
-	k_[ 2] = k[ 2] ^ SBox.s[k[15] ^ k[11]]
-	k_[ 3] = k[ 3] ^ SBox.s[k[12] ^ k[ 8]]
-	# Second Column
-	k_[ 4] = k[ 4] ^ k[ 0]
-	k_[ 5] = k[ 5] ^ k[ 1]
-	k_[ 6] = k[ 6] ^ k[ 2]
-	k_[ 7] = k[ 7] ^ k[ 3]
-	# Third Column
-	k_[ 8] = k [8] ^ k[ 4]
-	k_[ 9] = k[ 9] ^ k[ 5]
-	k_[10] = k[10] ^ k[ 6]
-	k_[11] = k[11] ^ k[ 7]
-	# Fourth Column
-	k_[12] = k[12] ^ k[ 8]
-	k_[13] = k[13] ^ k[ 9]
-	k_[14] = k[14] ^ k[10]
-	k_[15] = k[15] ^ k[11]
-	return k_
-
-################################################################################
-# Winds back the round key from n to m.
-# Arguments:
-#   k - [integer]: The 16 individual bytes of the round key
-#   n - integer:   The round number of the given key
-#   m - integer:   The round number for the desired resulting key
-# Return:
-#   [integer]: A new k' that is the round key for the specified round
-def step2_rk_windback(k, n, m):
-	if n < m:
-		raise(AssertionError, "n must be greater than (or equal to) m")
-	for i in range(n,m,-1):
-		k = _step2_rk_windback1(k, n)
-	return k
+# Initial printout for Step 2
+def step2_init_printout():
+	print "\n"
+	print "+-------------------------------------------------------------+"
+	print "| ==================    RUNNING STEP 2    =================== |"
+	print "+-------------------------------------------------------------+"
 
 ################################################################################
 # Does the calculations and checks the equations specified in Step 2 of the
@@ -247,7 +212,6 @@ def step2_check_equation(k, k9, sample_c, sample_f):
 	            ^ m[13][SBox.i[bl(sample_f,  3) ^ k[ 3]] ^ k9[15]] ]
 	# Check 2*a == b (as 2^-1 === 141 under Rijndael's Galois Field)
 	if m[a][141] != b:
-		print "a and b not alike"
 		return False
 
 	c   = SBox.i[ m[13][SBox.i[bl(sample_c,  8) ^ k[ 8]] ^ k9[ 8]]
@@ -260,7 +224,6 @@ def step2_check_equation(k, k9, sample_c, sample_f):
 	            ^ m[11][SBox.i[bl(sample_f, 15) ^ k[15]] ^ k9[11]] ]
 	# Check if b == c
 	if b != c:
-		print "b and c not alike"
 		return False
 
 	d   = SBox.i[ m[11][SBox.i[bl(sample_c,  4) ^ k[ 4]] ^ k9[ 4]]
@@ -276,6 +239,21 @@ def step2_check_equation(k, k9, sample_c, sample_f):
 	return m[d][246] == c
 
 ################################################################################
+# Verify that the given AES key works with the given plain/ciphertext
+# Arguments:
+#    key_list - [integer]: List of all the 16 AES key bytes in integer form
+#    sample_p - integer:   The given plaintext to verify with
+#    sample_c - integer:   The given corresponding ciphertext to verify with
+def step2_verify_AES_Key(key_list, sample_p, sample_c):
+	key = str(bytearray(key_list))
+	aes = AES.new(key)
+	msg = str(bytearray.fromhex("{0:x}".format(sample_p)))
+	enc = aes.encrypt(msg)
+	# Sorry for the awful conversion (bytearray -> [hex_str] -> hex_str -> int)
+	enc = int(''.join(["{0:02X}".format(i) for i in bytearray(enc)]), 16)
+	return enc == sample_c
+
+################################################################################
 # Step 2 from the attack in Reference 1
 # Arguments:
 #   sample_p     - integer      A sample plaintext
@@ -284,7 +262,7 @@ def step2_check_equation(k, k9, sample_c, sample_f):
 #   block_config - [integer]:   List of the block numbers these equations use
 #   keys         - [[integer]]: The possible key list from the previous step
 # Return:
-#   integer: The 128 bit recovered AES Key
+#   string: The 128 bit recovered AES Key as a hex string, or None if none found
 def step2(sample_p, sample_c, sample_f, block_config, keys):
 	k = [0 for i in range(16)]
 
@@ -326,29 +304,35 @@ def step2(sample_p, sample_c, sample_f, block_config, keys):
 					k[block_config[3][3]] = keys[block_config[3][3]][d]
 
 					# Set up our keys from round 9
-					k9 = step2_rk_windback(k, 10, 9)
+					k9 = aes_rk_windback(k, 10, 9)
 
 					# Check equations
 					if step2_check_equation(k, k9, sample_c, sample_f):
-						print "Yipee it worked!"
-						# TODO Implement AES Checking
-	return "1234567890"
-
-def step2_init_printout():
-	print "+-------------------------------------------------------------+"
-	print "| ==================    RUNNING STEP 2    =================== |"
-	print "+-------------------------------------------------------------+"
+						# If successful, wind back key to AES key and verify
+						key_list = aes_rk_windback(k9, 9, 0)
+						if step2_verify_AES_Key(key_list, sample_p, sample_c):
+							print "\nKey found!\n"
+							# Forgive me for this awful conversion
+							return ''.join(["{0:02X}".format(i)
+							                for i in bytearray(key_list)])
+	return None
 
 ################################################################################
 # Performs the attack
 # Arguments:
 #   target      - subprocess: Target to interact with
+#   sample_size - integer:    Number of samples to use, if unsure leave default
 # Returns:
 #   string: Extracted material from the target, in this case a key in
 #           hexadecimal representation
-def attack(target):
-
-	sample_size = 2
+def attack(target, sample_size=2):
+	if sample_size > 32:
+		print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
+		print "Warning: The sample size is now quite large. If you have not"
+		print "         manually set such a large sample size, you may wish to"
+		print "         consider force closing this process as something "
+		print "         fundamental may have gone wrong."
+		print "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
 
 	# Compute the formatting string for challenges
 	global _challenge_fmt
@@ -383,7 +367,12 @@ def attack(target):
 	k   = step1(samples_c, samples_f, coeff_config, block_config)
 	key = step2(samples_p[0], samples_c[0], samples_f[0], block_config, k)
 
-	return "{0:X}".format(int(key))
+	# In the unlikely event of a failure restart
+	if key == None:
+		print "Something appears to have gone wrong, restarting..."
+		return attack(target, sample_size*2)
+
+	return key
 
 ################################################################################
 # Main

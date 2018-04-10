@@ -22,6 +22,53 @@ def gf28_mul(a, b):
 	return p
 
 ################################################################################
+# Winds back the round key from n to n-1.
+# Arguments:
+#   k - [integer]: The 16 individual bytes of the round key
+#   n - integer:   The round number of the given key
+# Return:
+#   [integer]: A new k' that is the round key for the round before the given
+def __rk_windback1(k, n):
+	k_ = [0] * 16
+	# First Column
+	k_[ 0] = k[ 0] ^ SBox.s[k[13] ^ k[ 9]] ^ AESConst.rcon[n]
+	k_[ 1] = k[ 1] ^ SBox.s[k[14] ^ k[10]]
+	k_[ 2] = k[ 2] ^ SBox.s[k[15] ^ k[11]]
+	k_[ 3] = k[ 3] ^ SBox.s[k[12] ^ k[ 8]]
+	# Second Column
+	k_[ 4] = k[ 4] ^ k[ 0]
+	k_[ 5] = k[ 5] ^ k[ 1]
+	k_[ 6] = k[ 6] ^ k[ 2]
+	k_[ 7] = k[ 7] ^ k[ 3]
+	# Third Column
+	k_[ 8] = k [8] ^ k[ 4]
+	k_[ 9] = k[ 9] ^ k[ 5]
+	k_[10] = k[10] ^ k[ 6]
+	k_[11] = k[11] ^ k[ 7]
+	# Fourth Column
+	k_[12] = k[12] ^ k[ 8]
+	k_[13] = k[13] ^ k[ 9]
+	k_[14] = k[14] ^ k[10]
+	k_[15] = k[15] ^ k[11]
+	return k_
+
+################################################################################
+# Winds back the round key from n to m.
+# Arguments:
+#   k - [integer]: The 16 individual bytes of the round key
+#   n - integer:   The round number of the given key
+#   m - integer:   The round number for the desired resulting key
+# Return:
+#   [integer]: A new k' that is the round key for the specified round
+def aes_rk_windback(k, n, m):
+	if n < m:
+		raise(AssertionError, "n must be greater than (or equal to) m")
+	for i in range(n, m, -1):
+		k = __rk_windback1(k, i)
+	return k
+
+################################################################################
+# Class to act as an ENUM for the different AES Round Functions
 class AESRoundFunction:
 	AddRoundKey = 0
 	SubBytes = 1
@@ -34,6 +81,7 @@ class AESRoundFunction:
 		             AESRoundFunction.ShiftRows,   AESRoundFunction.MixColumns]
 
 ################################################################################
+# Class to act as an ENUM for the different locations a Fault can be inserted
 class FaultLoc:
 	Before = 0
 	After = 1
@@ -43,6 +91,8 @@ class FaultLoc:
 		return p in [FaultLoc.Before, FaultLoc.After]
 
 ################################################################################
+# Class to hold a Fault configuration, and export it to string format for the
+# target to interpret
 class FaultConfig:
 	def __init__(self, no_fault,
 	             r=8,
@@ -76,6 +126,7 @@ class FaultConfig:
 		       str(self.j)
 
 ################################################################################
+# Class to hold the AES SBox, and SBox inverse constant values
 class SBox:
 	s = [
 		0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76,
@@ -115,6 +166,7 @@ class SBox:
 	]
 
 ################################################################################
+# Class to hold AES Round Constants
 class AESConst:
 	rcon = [
 		0x8D, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1B, 0x36, 0x6C, 0xD8, 0xAB, 0x4D, 0x9A,
