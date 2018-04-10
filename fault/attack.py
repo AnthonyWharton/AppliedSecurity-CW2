@@ -168,6 +168,8 @@ def step1(samples_c, samples_f, coeff_config, block_config):
 		if len(os[eq]) == 0:
 			raise(RuntimeError, "No intersected results found for equation set"
 			                    + str(eq) + ".. Unable to continue")
+
+	print ''
 	return k_
 
 ################################################################################
@@ -234,7 +236,7 @@ def step2_check_equation(k, k9, sample_c, sample_f):
 def step2_verify_AES_Key(key_list, sample_p, sample_c):
 	key = str(bytearray(key_list))
 	aes = AES.new(key)
-	msg = str(bytearray.fromhex("{0:032X}".format(sample_p)))
+	msg = str(bytearray.fromhex(unicode("{0:032X}".format(sample_p))))
 	enc = aes.encrypt(msg)
 	# Sorry for the awful conversion (bytearray -> [hex_str] -> hex_str -> int)
 	enc = int(''.join(["{0:02X}".format(i) for i in bytearray(enc)]), 16)
@@ -401,7 +403,8 @@ def main():
 #   (on lab machines at the time of writing) or 2.6.6 (on snowy at the time of
 #   writing)
 def version_warning():
-	if  not sys.version_info[:3] == (2,7,5) \
+	if  not sys.version_info[:3] == (2,6,6) \
+	and not sys.version_info[:3] == (2,7,5) \
 	and not sys.version_info[:3] == (2,7,14):
 		print "!" * 80
 		print "!!!!" + " " * 13 + \
@@ -409,9 +412,9 @@ def version_warning():
 		      " " * 13 + "!!!!"
 		print "!!!!" + " There could be untested behaviour, thus " + \
 		      "it is recommended you run with " + "!" * 4
-		print "!!!!" + " " * 13 + \
-		      "Python 2.7.5 or compatible for optimum results" + \
-		      " " * 13 + "!!!!"
+		print "!!!!" + " " * 10 + \
+		      "Python 2.6.6/2.7.5 or compatible for optimum results" + \
+		      " " * 10 + "!!!!"
 		print "!" * 80
 
 ################################################################################
