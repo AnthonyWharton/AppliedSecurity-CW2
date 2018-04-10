@@ -76,7 +76,6 @@ def step1_init_printout():
 	print "| msg - Plaintext Message ID                                  |"
 	print "| eqs - Step 1 Equation Set ID                                |"
 	print "| pos - Number of possible key configurations                 |"
-	print "| val - The list of actual combinations for this equation set |"
 	print "+-------------------------------------------------------------+"
 
 ################################################################################
@@ -150,10 +149,9 @@ def step1(samples_c, samples_f, coeff_config, block_config):
 			               block_config[eq],
 			               samples_c[s],
 			               samples_f[s])
-			print "msg:"         + str(s)      + \
-			      " eqs:"  + str(eq)     + \
-			      " pos:" + str(len(o)) + \
-			      " val:"        + str(o)
+			print "msg:"  + str(s)      + \
+			      " eqs:" + str(eq)     + \
+			      " pos:" + str(len(o))
 
 			# Keep track of the intersection of options between samples
 			# This vastly narrows down the number of equations we must deal with
@@ -178,7 +176,7 @@ def step1(samples_c, samples_f, coeff_config, block_config):
 ################################################################################
 # Initial printout for Step 2
 def step2_init_printout():
-	print "\n"
+	print ""
 	print "+-------------------------------------------------------------+"
 	print "| ==================    RUNNING STEP 2    =================== |"
 	print "+-------------------------------------------------------------+"
@@ -247,7 +245,7 @@ def step2_check_equation(k, k9, sample_c, sample_f):
 def step2_verify_AES_Key(key_list, sample_p, sample_c):
 	key = str(bytearray(key_list))
 	aes = AES.new(key)
-	msg = str(bytearray.fromhex("{0:x}".format(sample_p)))
+	msg = str(bytearray.fromhex("{0:032X}".format(sample_p)))
 	enc = aes.encrypt(msg)
 	# Sorry for the awful conversion (bytearray -> [hex_str] -> hex_str -> int)
 	enc = int(''.join(["{0:02X}".format(i) for i in bytearray(enc)]), 16)
@@ -336,7 +334,7 @@ def attack(target, sample_size=2):
 
 	# Compute the formatting string for challenges
 	global _challenge_fmt
-	_challenge_fmt = "{0:X}"
+	_challenge_fmt = "{0:032X}"
 
 	# Generate the plaintexts
 	samples_p = generate_plaintexts(sample_size)
