@@ -68,15 +68,12 @@ def intersect(a,b):
 
 ################################################################################
 # Initial printout for Step 1
-def step1_init_printout():
-	print "+-------------------------------------------------------------+"
-	print "| ==================    RUNNING STEP 1    =================== |"
-	print "+-------------------------------------------------------------+"
-	print "| ====================   PRINTOUT KEY   ===================== |"
-	print "| msg - Plaintext Message ID                                  |"
-	print "| eqs - Step 1 Equation Set ID                                |"
-	print "| pos - Number of possible key configurations                 |"
-	print "+-------------------------------------------------------------+"
+def step_n_init_printout(n):
+	if not n in [1,2]:
+		raise(AssertionError, "Invalid Step Number")
+	print "+" + "-" * 78 + "+"
+	print "| " + "="*28 + "   RUNNING STEP " + str(n) + "   " + "="*28 + " |"
+	print "+" + "-" * 78 + "+"
 
 ################################################################################
 # Main calculation from Step 1 in the attack in Reference 1
@@ -142,16 +139,16 @@ def step1(samples_c, samples_f, coeff_config, block_config):
 	os = [[],[],[],[]]
 
 	# Loop through samples, run each equation and get the key possibilities
-	step1_init_printout()
+	step_n_init_printout(1)
 	for s in range(len(samples_c)):
 		for eq in range(4):
 			o = step1_calc(coeff_config[eq],
 			               block_config[eq],
 			               samples_c[s],
 			               samples_f[s])
-			print "msg:"  + str(s)      + \
-			      " eqs:" + str(eq)     + \
-			      " pos:" + str(len(o))
+			print "Sample Message: "              + str(s)      + \
+			      ",  Equation Set: "             + str(eq)     + \
+			      ",  No. of Key Possibilities: " + str(len(o))
 
 			# Keep track of the intersection of options between samples
 			# This vastly narrows down the number of equations we must deal with
@@ -172,14 +169,6 @@ def step1(samples_c, samples_f, coeff_config, block_config):
 			raise(RuntimeError, "No intersected results found for equation set"
 			                    + str(eq) + ".. Unable to continue")
 	return k_
-
-################################################################################
-# Initial printout for Step 2
-def step2_init_printout():
-	print ""
-	print "+-------------------------------------------------------------+"
-	print "| ==================    RUNNING STEP 2    =================== |"
-	print "+-------------------------------------------------------------+"
 
 ################################################################################
 # Does the calculations and checks the equations specified in Step 2 of the
@@ -264,7 +253,7 @@ def step2_verify_AES_Key(key_list, sample_p, sample_c):
 def step2(sample_p, sample_c, sample_f, block_config, keys):
 	k = [0 for i in range(16)]
 
-	step2_init_printout()
+	step_n_init_printout(2)
 	print "Key Possibilities for Equation Set 0: " + str(len(keys[0]))
 	print "Key Possibilities for Equation Set 1: " + str(len(keys[1]))
 	print "Key Possibilities for Equation Set 2: " + str(len(keys[2]))
@@ -412,7 +401,8 @@ def main():
 #   (on lab machines at the time of writing) or 2.6.6 (on snowy at the time of
 #   writing)
 def version_warning():
-	if not sys.version_info[:3] == (2,7,5):
+	if  not sys.version_info[:3] == (2,7,5) \
+	and not sys.version_info[:3] == (2,7,14):
 		print "!" * 80
 		print "!!!!" + " " * 13 + \
 		      "WARNING, RUNNING ON UNTESTED VERSION OF PYTHON" + \
