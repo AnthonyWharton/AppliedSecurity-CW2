@@ -13,4 +13,7 @@
 #include    <math.h>
 #include    <time.h>
 
+#include <openssl/evp.h>
+#include <openssl/err.h>
+
 #endif

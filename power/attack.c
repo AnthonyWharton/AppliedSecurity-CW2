@@ -42,15 +42,15 @@ static uint32_t   T_len   = UINT32_MAX; // Length for which all traces have valu
 static uint32_t  *T_lens  = NULL;  // Trace Lengths
 static uint8_t  **T       = NULL;  // Trace Values
 static uint8_t  **P       = NULL;  // Plaintext Message Bytes
-static uint8_t  **H1      = NULL;  // Hypothetical Power Traces for Key 1
-static uint8_t  **H2      = NULL;  // Hypothetical Power Traces for Key 2
+static uint8_t  **H       = NULL;  // Hypothetical Power Traces
+static uint8_t  **I       = NULL;  // Intermediate values between 1st/2nd stage
 static uint8_t   *K1      = NULL;  // Key 1 Bytes
 static uint8_t   *K2      = NULL;  // Key 2 Bytes
 
-static clock_t c_start;            // Time at start of attack
-static clock_t c_end;              // Time up until this variable was set
-static struct timespec r_start;
-static struct timespec r_end;
+static clock_t c_start;            // CPU time at start of attack
+static clock_t c_end;              // CPU time up until this variable was set
+static struct timespec r_start;    // Real time at start of attack
+static struct timespec r_end;      // Real time up until this variable was set
 
 /**
  * Interacts with the attack target, putting the results in the global arrays.
@@ -158,10 +158,9 @@ static void collect_samples()
 	}
 	close(random);
 
-
 	// Get all our samples from the target
 	for (int s = 0; s < SAMPLE_SIZE; s++) {
-		interact(-1, s);
+		interact(s, s);
 	}
 
 	printf("[INIT] %d samples read in succesfully!\n", SAMPLE_SIZE);
@@ -172,49 +171,56 @@ static void collect_samples()
  * Internal function used to create 256 key hypotheses for the given sample and
  * AES byte.
  */
-static inline void _create_key_hypotheses(const uint8_t b, const uint16_t k)
+static inline void _create_key_hypotheses(const uint8_t    b, 
+                                          const uint16_t   k, 
+                                                uint8_t  **h, 
+                                                uint8_t  **p)
 {
 	// For each sample
 	for (uint32_t sample = 0; sample < SAMPLE_SIZE; sample++) {
-		// Allocate memory for hypothetical power trace for the samples
-		if (sample == 0) {
-			H2[(256*b) + k] = malloc(sizeof(uint8_t) * SAMPLE_SIZE);
-		}
-
 		// Calculate hypothetical power consumption (hamming weight of
-		// SBox calculation)
-		uint8_t t = s[Sectors[b][sample] ^ k];
-		H2[(256*b) + k][sample] = __builtin_popcount(t);
+		// SBox calculation on `plaintext ^ key_hypothesis`)
+		uint8_t t = s[p[b][sample] ^ k];
+		h[(256*b) + k][sample] = __builtin_popcount(t);
 	}
 }
 
 /**
- * Generates the power values for use in attack against key 2.
+ * Generates the hypotheses power values as if running through SBOX in the first
+ * round of AES-128.
  */
-static void key2_generate()
+static void generate_hyp_sbox(uint8_t **h, uint8_t **p)
 {
-	printf("[KEY2] Starting generation of hypothetical power "
+	printf("[HYPO] Starting generation of hypothetical power "
 	       "consumptions...\n");
 
-	// Global declaration of the Hypothetical Power Value Array
-	H2 = malloc(sizeof(uint8_t *) * 16 * 256);
 
 	// For each byte in the plaintext
 	for (uint8_t b = 0; b < 16; b++) {
 		// For each different key hypothesis
 		for (uint16_t k = 0; k < 256; k++) {
-			_create_key_hypotheses(b, k);
+			_create_key_hypotheses(b, k, h, p);
 		}
 	}
 
-	printf("[KEY2] Completed generation of hypothtical power "
+	printf("[HYPO] Completed generation of hypothtical power "
 	       "consumptions!\n\n");
 }
 
-static inline void key2_work_over_samples(const uint16_t  b,
-                                          const uint16_t  k,
-                                          const uint32_t  t,
-                                                double   *ans)
+static void initialise_hypotheses(uint8_t ***h)
+{
+	*h = malloc(sizeof(uint8_t *) * 16 * 256);
+	for (uint16_t i = 0; i < 16*256; i++)
+		(*h)[i] = malloc(sizeof(uint8_t) * SAMPLE_SIZE);
+
+}
+
+static inline void work_over_samples(const uint16_t   b,
+                                     const uint16_t   k,
+                                     const uint32_t   t,
+                                           uint8_t  **hyp,
+                                           uint8_t  **trc,
+                                           double    *ans)
 {
 	double sig_kt = 0.f;  // Σ (k*t)
 	double sig_k  = 0.f;  // Σ ( k )
@@ -223,8 +229,8 @@ static inline void key2_work_over_samples(const uint16_t  b,
 	double sig_t2 = 0.f;  // Σ (t*t)
 
 	for (uint32_t sample = 0; sample < SAMPLE_SIZE; sample++) {
-		double kk = (double) H2[(256*b) + k][sample];
-		double tt = (double)  T[     t     ][sample];
+		double kk = (double) hyp[(256*b) + k][sample];
+		double tt = (double) trc[     t     ][sample];
 		sig_kt += kk * tt;
 		sig_k  += kk;
 		sig_t  += tt;
@@ -241,18 +247,18 @@ static inline void key2_work_over_samples(const uint16_t  b,
                );
 }
 
-static void key2_correlate_data()
+static void correlate_data(uint8_t **key, uint8_t **hyp, uint8_t **trc)
 {
-	printf("[KEY2] Starting Key Guess/Correlation Calculation...\n");
+	printf("[CORR] Starting Key Guess/Correlation Calculation...\n");
 
 	// Initialise Memory
-	K2 = malloc(sizeof(uint8_t) * 16);
-	memset(K2, 0, sizeof(uint8_t) * 16);
+	*key = malloc(sizeof(uint8_t) * 16);
+	memset(*key, 0, sizeof(uint8_t) * 16);
 	double working = 0.f; // Working value for correlation values
 
 	// For each byte of the key
 	for (uint16_t b = 0; b < 16; b++) {
-		printf("[KEY2] +-- Starting Byte %d...\n", b);
+		printf("[CORR] +-- Starting Byte %d...\n", b);
 		double bestC = 0.f; // Best correlation value for this byte
 		// For each key hypothesis
 		#pragma omp parallel for private(working) schedule(dynamic)
@@ -260,18 +266,95 @@ static void key2_correlate_data()
 			// For each trace timestep value
 			for (uint32_t t = 0; t < T_len; t++) {
 				// Calculate Correlation
-				key2_work_over_samples(b, k, t, &working);
-				K2[b] = working > bestC ?    k    : K2[b];
-				bestC = working > bestC ? working : bestC;
+				work_over_samples(b, k, t, hyp, trc, &working);
+				(*key)[b] = working > bestC ? k : (*key)[b];
+				bestC     = working > bestC ? working : bestC;
 			}
 		}
-		printf("[KEY2] | Estimate of Key Byte: %02X\n", K2[b]);
-		printf("[KEY2] | Power Trace Correlation: %f\n", bestC);
+		printf("[CORR] | Estimate of Key Byte: %02X\n",  (*key)[b]);
+		printf("[CORR] | Power Trace Correlation: %f\n", bestC);
 	}
-	printf("[KEY2] +-- Completed Key Guess/Correlation Calculation!\n");
-	printf("[KEY2] Found Key 2: ");
-	for (uint8_t b = 0; b < 16; b++) printf("%02X", K2[b]);
+	printf("[CORR] +-- Completed Key Guess/Correlation Calculation!\n");
+	printf("[CORR] Found Key: ");
+	for (uint8_t b = 0; b < 16; b++) printf("%02X", (*key)[b]);
 	printf("\n\n");
+}
+
+/**
+ * Prints an error from OpenSSL (Used for EVP Encryption/Decryption) and aborts.
+ */
+static void evp_handle_error()
+{
+	ERR_print_errors_fp(stderr);
+	abort();
+}
+
+/**
+ * Sets up an EVP Context for encryption of AES128 blocks. No validation is done
+ * on the given key pointer.
+ */
+static EVP_CIPHER_CTX *aes128_block_setup(const uint8_t *key)
+{
+	EVP_CIPHER_CTX *ctx = NULL;
+
+	// Create EVP Context
+	if (!(ctx = EVP_CIPHER_CTX_new()))
+		evp_handle_error();
+
+	// Give EVP Context the AES Key
+	if (1 != EVP_EncryptInit_ex(ctx, EVP_aes_128_ecb(), NULL, key, 0))
+		evp_handle_error();
+
+	return ctx;
+}
+
+/**
+ * Encrypts a single 16 byte plaintext block.
+ */
+static void aes128_block_encrypt(EVP_CIPHER_CTX *ctx, 
+		                 uint8_t        *p,
+		                 uint8_t        *c)
+{
+	int _ = 0;
+	if (1 != EVP_EncryptUpdate(ctx, c, &_, p, 16)) 
+		evp_handle_error();
+	// Ommited EVP_EncryptFinal_ex() as we are only encrypting one block
+}
+
+/**
+ * Encrypts all sectors with Key 2 in preparation for attacking Key 1
+ */
+static void encrypt_sectors()
+{
+	printf("[MISC] Encrypting sectors for next stage of the attack...\n");
+	EVP_CIPHER_CTX *ctx = aes128_block_setup(K2);
+
+	// Initialise global memory
+	I = malloc(sizeof(uint8_t *) * 16);
+	for (uint8_t i = 0; i < 16; i++) 
+		I[i] = malloc(sizeof(uint8_t) * SAMPLE_SIZE);
+
+	// Initialise local memory
+	uint8_t *p = malloc(sizeof(uint8_t) * 16);
+	uint8_t *c = malloc(sizeof(uint8_t) * 16);
+	for (uint32_t s = 0; s < SAMPLE_SIZE; s++) {
+		// Extract column (sample) from Sectors array
+		for (uint8_t b = 0; b < 16; b++) {
+			p[b] = Sectors[b][s];
+		}
+
+		aes128_block_encrypt(ctx, p, c);
+
+		// Put column (sample) into the intermediate value array
+		for (uint8_t b = 0; b < 16; b++) {
+			p[b] = I[b][s];
+		}
+	}
+	free(p);
+	free(c);
+
+	EVP_CIPHER_CTX_free(ctx);
+	printf("[MISC] Done! Ready to attack Key 1\n\n");
 }
 
 /**
@@ -287,10 +370,15 @@ static void attack()
 	collect_samples();
 
 	// Generate hypothetical power values for key 2
-	key2_generate();
+	initialise_hypotheses(&H);
+	generate_hyp_sbox(H, Sectors);
 
 	// Calculate correlation/find key 2
-	key2_correlate_data();
+	correlate_data(&K2, H, T);
+
+	// Intermediate step, encrypt sectors to create plaintext for the attack
+	// on key 1
+	encrypt_sectors();
 
 	// Save end time
 	c_end = clock();
@@ -317,8 +405,8 @@ static void cleanup(int s)
 	FREE_AND_NULLIFY(T_lens)
 	FREE_AND_NULLIFY_MULTIPLE(T,   T_alloc)
 	FREE_AND_NULLIFY_MULTIPLE(P,        16)
-	FREE_AND_NULLIFY_MULTIPLE(H1, 16 * 256)
-	FREE_AND_NULLIFY_MULTIPLE(H2, 16 * 256)
+	FREE_AND_NULLIFY_MULTIPLE(H,  16 * 256)
+	FREE_AND_NULLIFY_MULTIPLE(I,        16)
 	FREE_AND_NULLIFY(K1);
 	FREE_AND_NULLIFY(K2);
 

@@ -7,7 +7,7 @@ DEBUG = # No debug options by default
 
 #        target-pattern     prerequisites
 attack :        %       : %.c %.h ${SOURCES_C}
-	@gcc -Wall -std=gnu99 -O3 ${DEBUG} -o ${@} $(filter %.c, ${^}) -lm -fopenmp
+	@gcc -Wall -std=gnu99 -O3 ${DEBUG} -o ${@} $(filter %.c, ${^}) -lm -fopenmp -lcrypto
 #                                    ^    ^
 #                                    |    |
 #                                    |    - ${^} is all the pre-req's, space
