@@ -298,17 +298,16 @@ static inline double work_over_samples(const uint16_t   b,
  */
 static void correlate_data(uint8_t *key, uint8_t **hyp, uint8_t **trc)
 {
-	printf("[CORR] Starting Key Guess/Correlation Calculation...\n");
+	printf("[CORR] +-- Starting Key Guess/Correlation Calculation...\n");
 
 	// Initialise Memory.
 	double  working = 0.f;
 
 	// For each byte of the key,
+	#pragma omp parallel for private(working) schedule(dynamic)
 	for (uint16_t b = 0; b < 16; b++) {
-		printf("[CORR] +-- Starting Byte %d...\n", b);
 		double bestC = 0.f;
 		// For each key hypothesis.
-		#pragma omp parallel for private(working) schedule(dynamic)
 		for (uint16_t k = 0; k < 256; k++) {
 			// For each trace timestep value.
 			for (uint32_t t = 0; t < T_len; t++) {
@@ -318,8 +317,8 @@ static void correlate_data(uint8_t *key, uint8_t **hyp, uint8_t **trc)
 				bestC   = working > bestC  ? working : bestC;
 			}
 		}
-		printf("[CORR] | Estimate of Key Byte: %02X\n",  key[b]);
-		printf("[CORR] | Best  Power Trace Correlation: %f\n", bestC);
+		printf("[CORR] | Byte %02d... Key: %02X, Correlation: %f\n", 
+		       b, key[b], bestC);
 	}
 	printf("[CORR] +-- Completed Key Guess/Correlation Calculation!\n");
 	printf("[CORR] Found Key: ");
