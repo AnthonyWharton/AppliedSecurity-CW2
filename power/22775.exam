@@ -3,6 +3,50 @@ Q.1 As a security consultant, you have been working on a prototype of the
     make any alteration necessary (in software or hardware) to prevent the
     attack.  Explain the options available, and which one you would
     recommend.
+
+A.1 In order to harden an implementation against a differential power analysis
+    attack we can once again look at hardware and software solutions.  It should
+    be noted that none of these solutions work against second order differential
+    power attacks, but should harden against first order differential power
+    attacks.  The crux of all of the methods below is to randomise/obfuscate the
+    power trace, making the work for the attacker much harder to complete.
+
+    There are a few different software solutions that are available.  The first
+    of which is to add randomised decoy operations to the cipher operations.
+    This has the effect of adding random delays within the operations, meaning
+    that the power trace will be spread out different each time the operation
+    executes.  This would be an easy implementation addition, and only add
+    computation latency, however it would help harden against attacks that rely
+    the timing of operations. A correlation attack such as the one implemented
+    for this question would probably still be effective if implemented well.
+
+    An alternative software solution would be to randomly reorder the AES
+    subroutines within the cipher operations.  The SubBytes step is a perfect
+    candidate for this, as it merely a substitution.  The downside of this is
+    that you would require either computational latency, or extra memory usage
+    for additional lookup tables dependant on where SubBytes is run.
+
+    Another software solution would be to apply AES masking to the cipher
+    operations.  This would add extra computational latency, however it would
+    mean that the recovered key would only have worked for the session/operation
+    that it was recovered from, as keys would be randomised by the mask every
+    single time.
+
+    A hardware solution could involve implementing any of the above software
+    solutions in a robust hardware solution, which would help reduce latency,
+    however it would obviously be a much more involved task.  A countermeasure
+    that is unique to hardware solutions would be to add hardware that helps
+    obfuscate the power trace of the device.  For example, if capacitors were
+    added at points around the circuit, or a power supply that sanitises power
+    usage, this could help make the power trace an infeasible attack surface.
+
+    If I were to recommend a solution, I would use a mix of masking and random
+    reordering of SubBytes. However, these are involved solutions and still
+    weak to second order differential power attacks, which leads me to wonder
+    the cost to reward ratio!
+
+================================================================================
+
 Q.2 The vendor of the attack target opts to replace the 8-bit Intel 8051
     micro-processor with a modern, 32-bit ARM Cortex-M0; they supplement it
     with hardware support for that allows single-cycle operations on 32
@@ -10,11 +54,80 @@ Q.2 The vendor of the attack target opts to replace the 8-bit Intel 8051
     encryption or decryption, but they *also* want to know if it might make
     the device more secure wrt.  DPA attacks: what is your assessment, and
     why ?
+
+A.2 There are a few different aspects to considering the security of this new
+    chip wrt. DPA attacks. The first of which is that the chip will be not using
+    RAM any more in order to store intermediate values.  The read/writes from/to
+    RAM contribute to much cleaner (less noisy) data that can be used to
+    determine the intermediate values of the crytographic operations.  Moving
+    the ventire cipher operation to a single cycle on-chip operation would
+    alleviate the need for use of RAM, not only making it faster, but removing
+    this source of good data.
+
+    The other aspect to consider is that many operations will be happening in
+    parallel, meaning that the power usage will be heavily obscured.  A power
+    trace for a single cycle reveals far less information about the cipher
+    operation as many different steps will be combined, effectively meaning that
+    the power samples generated would actually be for a combination of
+    operations at once, making it much harder to distinguish what is happening.
+
+    Overall I would say that moving to a single cycle on-chip operation would
+    be a lot more secure wrt. DPA attacks, however I would not rule out all
+    forms of attack as there may still be vunerabilities.  It would however
+    increase the barrier to entry for attack quite considerably.
+
+================================================================================
+
 Q.3 DPA attacks work because statistics can (to some degree) remove the
     noise within power consumption traces.  Explain the concepts of signal,
     noise and signal-to-noise ratio, and the role each has in a DPA attack
     of this type.
+
+A.3 Firstly, lets get the definitions out of the way.
+
+    Signal: The electrical impulse in the circuitry of the chip/circuit board.
+            Signals are generated and used by the components, representing the
+            data that those components are working on.
+    Noise:  Unwanted electrical inteference in the circuitry of the chip/circuit
+            board. This could come from a variety of sources, but essentially
+            additively changes the desired signal by some likely unknown delta.
+    SNR:    The signal-to-noise ratio is the ratio between the wanted signal
+            impulses on a wire, compared to the unwanted noise.
+
+    Now that we have these clearly defined, we can talk about the role of these
+    on DPA attacks. In order to ascertain information about the cryptographic
+    operation, we wish to try and work out intermediate values, or changes in
+    values throughout the computation.  The power required to change memory is
+    strongly correlated with the hamming weight of the value that the memory is
+    being changed to.  This is how the DPA attack written for this assignment
+    operates, by correlating enough hamming weight changes we can be fairly
+    certain about the key bits that we wish to recover.
+
+    In the event that the level of noise in the power samples retrieved is too
+    high, thus having a lower signal to noise ratio, errors could be introduced
+    in the assumed hamming weight when correlating power samples.  This could
+    lead to inconsistent intermediate data in the attack, and possibly incorrect
+    results.
+
+================================================================================
+
 Q.5 DPA attacks rely on a leakage model; for an Intel 8051, one might
     consider Hamming weight or Hamming distance models for example.
     Explain and justify the choice of model you used (e.g., explain why/how
     the attack target might leak information in this way).
+
+A.5 For my attack I used the Hamming weight model.  I chose this for two
+    reasons; the first of which is due to what we are looking for in the power
+    traces.  As we are trying to determine intermediate values, and we are
+    assuming that the system is storing intermediate values to memory, we can
+    see that the power usage on the bus will correlate with the hamming weight
+    of the values set.  This is due to the strong corellation between the
+    hamming weight of a binary value, and the power required to set memory.
+
+    In addition to this, another reason for using hamming weight over distance
+    is that we do not know the values before and after an operation - we are
+    trying to work that out! In order to work with hamming distances, we would
+    need to know these values, and that would require a completely different
+    strategy in order to make an effective attack.
+
+

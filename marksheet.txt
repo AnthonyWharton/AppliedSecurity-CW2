@@ -18,8 +18,8 @@ a rough idea how long (in hours) you spent on it *in total*:
 
 effort : stage 1 -> 20 hours
 effort : stage 2 -> 25 hours
-effort : stage 3 -> [...] hours
-effort : stage 4 -> [...] hours
+effort : stage 3 -> 24 hours
+effort : stage 4 -> 32 hours
 
 -------------------------------------------------------------------------------
 
@@ -68,21 +68,24 @@ generality, realism, or style of a solution.
               - solution quality wrt. efficiency, robustness etc.    ( 30%)
               - analysis questions                                   ( 30%)
 
-              challenge material (i.e., exponent   d^{*}) : 1660947EF60BBF7F
+              challenge material (i.e., exponent   d^{*}) : 
+              1660947EF60BBF7F
 
-[?] Stage 3 : an attack based on an injected fault
+[X] Stage 3 : an attack based on an injected fault
               - correct challenge material                           ( 40%)
               - solution quality wrt. efficiency, robustness etc.    ( 30%)
               - analysis questions                                   ( 30%)
 
-              challenge material (i.e., cipher key k^{*}) : [...]
+              challenge material (i.e., cipher key k^{*}) : 
+              10E2ECA4ABFC1FFF861DD75B04063629
 
-[?] Stage 4 : an attack based on power consumption
+[X] Stage 4 : an attack based on power consumption
               - correct challenge material                           ( 40%)
               - solution quality wrt. efficiency, robustness etc.    ( 30%)
               - analysis questions                                   ( 30%)
 
-              challenge material (i.e., cipher key k^{*}) : [...]
+              challenge material (i.e., cipher key k^{*}) :
+              FECFA6C8A2FCB98F353B801BA269060E4B3F5D6DE1EFD29723634F30D3AFA825
 
                                                                      ------
                                                                      (400%)
@@ -130,6 +133,39 @@ Stage 2:
         the process of additionally regenerating the precomputed values when
         samples were added was beyond required scope, and would provide little
         additional benefit.
+
+Stage 3:
+    Expected Run Time:
+        Tested on my local development machine, this attack takes about 1
+        second. Lab machines are expected to be slightly slower.
+    Notes:
+        For this attack I, although only 2 interactions (for a correct and
+        faulty execution) are required, I used 4 interactions.  I worked out
+        the intersection of the key hypotheses between the two different
+        correct/faulty pairs from Stage 1 which usually results in 1 hypothesis
+        being fed to stage 2.  This is a drastic reduction in key hypotheses,
+        speeding up the attack greatly.  There are occasions where more than 1
+        hypothesis is fed into stage 2, thus we still run stage 2 to find the
+        correct key hypothesis.
+
+Stage 4:
+    Expected Run Time:
+        Tested on my local development machine, this attack takes about 20-25
+        seconds. Lab machines are expected to be slightly slower, but have
+        double the core count and this implementation is threaded, so could
+        run faster.
+    Notes:
+        I finally had to crack out C for this one!
+
+        This should almost always return correct results with the provided
+        target, however if it fails self-verification, then it must be re-run.
+        If self-verification fails multiple times, the sample size may need to
+        be increased. This can be done by changing the definition on line 5
+        of attack.c.
+
+        Sadly, due to other deadlines, I decided that the reward/cost ratio of
+        implementing automatic scaling of samples, even though fairly trivial,
+        was not worth it.
 
 
 -------------------------------------------------------------------------------

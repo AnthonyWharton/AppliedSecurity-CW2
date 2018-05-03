@@ -2,13 +2,113 @@ Q.1 Consider that instead of influencing data (e.g., the AES state), a
     fault might influence control-flow (e.g., a conditional statement)
     somehow during execution.  Stating any assumptions you make, give an
     alternative attack strategy based on this ability.
+
+A.1 The attack outlined in the Turnstall, Mukhopadhyay, Ali paper on
+    Differential fault attacks relies on two stages.  The fist stage narrows
+    down the number of key hypotheses down to 2^32 hypotheses, and then the
+    subsequent stage narrows it down further to the point where we can ascertain
+    the key.  This attack relies on one byte being erroneous, and following how
+    that error proporgates around the attack.
+
+    In order to achieve the same results by affecting control flow, it would be
+    easiest to look at the flow of conditional jumps in AES implementations. A
+    prime example of this is the loop in Mix Columns.  If the attack were able
+    to affect the flow such that only 15 of the 16 bytes were modified in this
+    step, she would know that one byte would be erroneous as it wouldn't have
+    been set correctly.  From here it would be a matter of tracing how this
+    error propogates, as the formulae would differ from those suggested in the
+    paper.
+
+================================================================================
+
 Q.2 Outline the methods available for hardening this AES implementation
     against fault attacks; for each method, explain any assumptions you
     make and compare it with the others wrt.  metrics such as robustness,
     latency, and memory footprint.
+
+A.2 As usual, countermeasures and methods for hardening AES against fault
+    attacks - much like hardening any cipher again any attack - can be split
+    into two categories; hardware solutions, and software solutions.
+
+    A software solution could employ two different strategies. The first would
+    be to add self-validation of internal state within the cipher operati`on.
+    This does however add a large overhead in computation time, and possibly an
+    overhead in memory footprint, as extra checks will need to be computed very
+    frequently, and checksums/parity bits would need to be kept around.  In
+    addition, if we assume the attacker has a way to induce faults in the
+    system, they may have a way to induce faults in self error correcting
+    systems.
+
+    A different software solution would involve changing the order of operations
+    on the AES subroutines randomly on each execution of a cipher operation.
+    This required thought in regards to not changing the final output of the
+    operation, however a stage such as SubBytes which relies on a lookup table,
+    could have it's execution delayed to after ShiftRows, instead of before.
+    This would of course require a different lookup table, and thus increase the
+    memory footprint.  If this were not possible due to hardware limitations, it
+    would require on the fly calculations for each operation incurring a latency
+    hit. If the attackers method of injecting a fault relied on knowing the
+    timing of the operations, this would harden against this.  However, in the
+    case where the attacker could dynamically insert a fault into the operation
+    regardless of timing, this countermeasure would be ineffective.
+
+    Both software solutions proposed will harden against certain types of
+    attack, with limitation.  The first of these solutions, self validation,
+    could be implemented in hardware.  This would mean that the AES operations
+    performed by the hardware would also be validated by the hardware itself.
+    Providing this is implemented in a way such that the attacker were not able
+    to inject a fault into it, this would also reduce the latency and memory
+    impact of the countermeasure, but of course require new (possibly more
+    expensive hardware).
+
+================================================================================
+
 Q.3 The question outlines one method to induce faults (i.e., via a clock
     glitch).  For the same attack target, construct a set of alternative
     methods and explain whether they seem applicable given the context.
+
+A.3 The attack target that we were dealing with for this question was an ISO/IEC
+    7816 compliant contact-based smart-card chip.  In order to attack this with
+    a clock glitch, we would need to have physical access to the card.  I will
+    continue this assumption for a different proposal.
+
+    The smart cards have 5 active pins for clock, power, ground, reset and i/o.
+    I will assume that the ground pin is not a surface (but I may be mistaken).
+    This leaves us with 3 other surfaces for attack.  Changing the power pin
+    could result in faulty behaviour which if harnessed correctly could result
+    in an induced fault with a similar effect to that of the clock signal.  This
+    could possibly be done in such a way that a new attack would not need to be
+    implemented!
+
+    Altenatively, we could attack the reset pin.  The attack use would be
+    dependant on the behaviour of this pin, and likely be considerably different
+    to the attack that was implemented for this question.  A well timed reset
+    would allow an attacker to be left with intermediate values in hardware,
+    which if extracted could give information about the key/cipher operation.
+
+    Lastly, an attack on the i/o pin would depend on the implementation of the
+    smart card itself.  More research or information would be required, and this
+    information could be kept secret by the manufacturer.  Although reverse
+    engineering methods could be adopted, this attack would be considerably
+    more involved.
+
+    Footnote, other attacks are possible that do not involve the pins, such as
+    blasting the smartcard with EM radiation from a laser.  This could induce
+    random faults, but the ability to control the fault induce would be much
+    lower and less precise than the other methods.
+
+================================================================================
+
 Q.6 One way to reduce the effectiveness of DPA attacks on AES is to use a
     masking countermeasure.  Explain if and why the *same* countermeasure
     could also have an impact on the effectiveness of fault attacks.
+
+A.6 This countermeasure would not affect this fault attack.  This is due to how
+    the attack operates.  The attack relies on relationships between the key
+    hypotheses that we generated, and the values that we recieved from the AES
+    cipher operation.  As masking simply changes the value in a reversible way,
+    we know that this relationship still holds true, meaning that the attack
+    will be just as effective.  Some of the intermediate values will be
+    different, such as the delta values in the paper between the sets of
+    equations, but overall the same result will be attainable.
+
